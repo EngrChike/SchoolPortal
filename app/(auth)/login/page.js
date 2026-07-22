@@ -36,7 +36,8 @@ export default function CentralAuthGateway() {
         setProfile({
           name: "System Director",
           identifier: "Central Admin Node",
-          storedPassword: adminRow?.password || ""
+          id: adminRow?.id || null,
+          storedPassword: adminRow?.password ? String(adminRow.password).trim() : ""
         });
         setIsChecking(false);
         return;
@@ -53,7 +54,8 @@ export default function CentralAuthGateway() {
         setProfile({
           name: teacher.name,
           identifier: teacher.department || "Faculty Board",
-          storedPassword: teacher.password || ""
+          id: teacher.id,
+          storedPassword: teacher.password ? String(teacher.password).trim() : ""
         });
         setIsChecking(false);
         return;
@@ -70,7 +72,8 @@ export default function CentralAuthGateway() {
         setProfile({
           name: student.name,
           identifier: student.reg_number,
-          storedPassword: student.password || ""
+          id: student.id,
+          storedPassword: student.password ? String(student.password).trim() : ""
         });
         setIsChecking(false);
         return;
@@ -96,21 +99,27 @@ export default function CentralAuthGateway() {
       else if (userRole === "teacher") targetTable = "teachers";
       else if (userRole === "student") targetTable = "students";
 
-      // Strict enforcement: If a password already exists, validate it strictly.
-      if (profile.storedPassword && profile.storedPassword.trim() !== "") {
-        if (profile.storedPassword.trim() !== cleanInputPassword) {
+      // Strict enforcement: If a password already exists in the database, match it strictly.
+      if (profile.storedPassword !== "") {
+        if (profile.storedPassword !== cleanInputPassword) {
           alert("❌ Incorrect Password! Access verification failed.");
           setIsSubmitting(false);
           return;
         }
       } 
-      // Only allow setting a password if none has ever been created for this account
+      // If no password exists yet, save it permanently to the database
       else {
-        const { error } = await supabase
+        let query = supabase
           .from(targetTable)
-          .update({ password: cleanInputPassword })
-          .eq("email", cleanEmail);
+          .update({ password: cleanInputPassword });
+        
+        if (profile.id) {
+          query = query.eq("id", profile.id);
+        } else {
+          query = query.eq("email", cleanEmail);
+        }
 
+        const { error } = await query;
         if (error) throw error;
         
         profile.storedPassword = cleanInputPassword;
@@ -198,7 +207,7 @@ export default function CentralAuthGateway() {
 
             <div>
               <label className="block text-xs font-bold uppercase text-slate-400 tracking-wider mb-1.5">
-                {!profile.storedPassword ? "✨ Create Your Permanent Password" : "🔑 Enter Security Password"}
+                {profile.storedPassword === "" ? "✨ Create Your Permanent Password" : "🔑 Enter Security Password"}
               </label>
               <input 
                 type="password" 
@@ -211,7 +220,7 @@ export default function CentralAuthGateway() {
             </div>
 
             <button type="submit" disabled={isSubmitting} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm py-4 rounded-2xl transition-all shadow-md shadow-indigo-100 cursor-pointer">
-              {isSubmitting ? "Opening Dashboard..." : !profile.storedPassword ? "Set Password & Save Account" : "Access Workspace"}
+              {isSubmitting ? "Opening Dashboard..." : profile.storedPassword === "" ? "Set Password & Save Account" : "Access Workspace"}
             </button>
           </form>
         )}
