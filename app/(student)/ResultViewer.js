@@ -37,6 +37,71 @@ export default function ResultViewer({
 
   return (
     <div className="space-y-6">
+      
+      {/* Embedded CSS rules optimized to force 1-page fit and fix print display bugs */}
+      <style dangerouslySetInnerHTML={{__html: `
+        @media print {
+          body {
+            background: white !important;
+            color: black !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          .no-print-wrapper { 
+            display: none !important; 
+          }
+          .print-root-container { 
+            padding: 0 !important; 
+            background: white !important; 
+            margin: 0 !important; 
+            max-width: 100% !important; 
+          }
+          .print-sheet-node { 
+            display: block !important; 
+            border: none !important; 
+            box-shadow: none !important; 
+            padding: 2mm 4mm !important; 
+            margin: 0 !important;
+            width: 100% !important;
+            background: white !important;
+            position: relative !important;
+            page-break-after: avoid !important;
+            page-break-inside: avoid !important;
+          }
+          .print-stamp-box {
+            border: 2px dashed #000000 !important;
+            background-color: #fafafa !important;
+            display: block !important;
+            min-height: 50px !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          .print-watermark-container {
+            display: flex !important;
+            opacity: 0.03 !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          .print-signature-line {
+            border-bottom: 2px solid #000000 !important;
+          }
+          /* Tighten spacing during print to guarantee single-page constraint */
+          .print-compact-space {
+            margin-top: 1rem !important;
+            margin-bottom: 1rem !important;
+            padding: 0.75rem !important;
+          }
+          .print-compact-header {
+            padding-bottom: 0.75rem !important;
+            margin-bottom: 0.75rem !important;
+          }
+          @page { 
+            size: A4 portrait; 
+            margin: 5mm; 
+          }
+        }
+      `}} />
+
       {!isResultUnlocked ? (
         <div className="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-sm max-w-md mx-auto text-center no-print-wrapper mt-4">
           <div className="h-14 w-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 text-xl">🔒</div>
@@ -63,13 +128,13 @@ export default function ResultViewer({
             </div>
 
             {/* Official Slip Document Header */}
-            <div className="border-b-4 border-slate-800 pb-6 mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
+            <div className="border-b-4 border-slate-800 pb-6 mb-6 print-compact-header flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div className="flex items-center space-x-4">
-                <div className="h-16 w-16 overflow-hidden flex items-center justify-center relative flex-shrink-0">
+                <div className="h-14 w-14 overflow-hidden flex items-center justify-center relative flex-shrink-0">
                   <img src="/logo.png" alt="Institutional Seal" className="w-full h-full object-contain max-h-full" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-black text-slate-900 tracking-tight leading-none uppercase">Don Chike International School</h2>
+                  <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight leading-none uppercase">Don Chike International School</h2>
                   <p className="text-[10px] font-bold text-slate-500 mt-1 uppercase tracking-widest">Office of the Registrar • Student Academic Record</p>
                   <p className="text-[9px] text-slate-400 mt-0.5 font-medium">Abidjan, Côte d'Ivoire</p>
                 </div>
@@ -81,10 +146,10 @@ export default function ResultViewer({
             </div>
 
             {/* Meta Info Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-200/60 mb-6 text-xs">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-200/60 mb-5 print-compact-space text-xs">
               <div>
                 <span className="block text-[9px] uppercase font-black text-slate-400 tracking-wider">Student Name</span>
-                <p className="font-bold text-slate-800 mt-0.5 max-w-[180px] truncate">{fullName || "N/A"}</p>
+                <p className="font-bold text-slate-800 mt-0.5 truncate">{fullName || "N/A"}</p>
               </div>
               <div>
                 <span className="block text-[9px] uppercase font-black text-slate-400 tracking-wider">Section Node</span>
@@ -105,11 +170,11 @@ export default function ResultViewer({
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b-2 border-slate-700 text-[10px] font-black uppercase text-slate-400 tracking-wider">
-                    <th className="py-3 px-2">Code</th>
-                    <th className="py-3 px-2">Course Module Title</th>
-                    <th className="py-3 px-2 text-center">CA (40)</th>
-                    <th className="py-3 px-2 text-center">Exam (60)</th>
-                    <th className="py-3 px-2 text-center">Total (100)</th>
+                    <th className="py-2.5 px-2">Code</th>
+                    <th className="py-2.5 px-2">Course Module Title</th>
+                    <th className="py-2.5 px-2 text-center">CA (40)</th>
+                    <th className="py-2.5 px-2 text-center">Exam (60)</th>
+                    <th className="py-2.5 px-2 text-center">Total (100)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
@@ -122,12 +187,12 @@ export default function ResultViewer({
                     const totalGrade = compositeCA + exam;
 
                     return (
-                      <tr key={i} className="hover:bg-slate-50/40 transition-colors print-avoid-break">
-                        <td className="py-3.5 px-2 font-mono font-bold text-indigo-600 uppercase">{rec.courses?.code || "N/A"}</td>
-                        <td className="py-3.5 px-2 font-black text-slate-800">{rec.courses?.name || "N/A"}</td>
-                        <td className="py-3.5 px-2 text-center font-medium font-mono text-slate-600">{compositeCA}</td>
-                        <td className="py-3.5 px-2 text-center font-medium font-mono text-slate-600">{exam}</td>
-                        <td className="py-3.5 px-2 text-center font-bold font-mono text-slate-900 bg-slate-50/30">{totalGrade}%</td>
+                      <tr key={i} className="hover:bg-slate-50/40 transition-colors">
+                        <td className="py-2.5 px-2 font-mono font-bold text-indigo-600 uppercase">{rec.courses?.code || "N/A"}</td>
+                        <td className="py-2.5 px-2 font-black text-slate-800">{rec.courses?.name || "N/A"}</td>
+                        <td className="py-2.5 px-2 text-center font-medium font-mono text-slate-600">{compositeCA}</td>
+                        <td className="py-2.5 px-2 text-center font-medium font-mono text-slate-600">{exam}</td>
+                        <td className="py-2.5 px-2 text-center font-bold font-mono text-slate-900 bg-slate-50/30">{totalGrade}%</td>
                       </tr>
                     );
                   })}
@@ -136,33 +201,33 @@ export default function ResultViewer({
             </div>
 
             {/* Official Certification Attestation Banner Wrapper */}
-            <div className="mt-8 border border-slate-200 bg-white rounded-3xl p-6 text-slate-800 text-center print-avoid-break">
-              <div className="text-xs font-black text-indigo-900 tracking-wider uppercase mb-3">
+            <div className="mt-5 mb-5 print-compact-space border border-slate-200 bg-white rounded-2xl p-4 text-slate-800 text-center">
+              <div className="text-[11px] font-black text-indigo-900 tracking-wider uppercase mb-1.5">
                 OFFICIAL ATTESTATION PROFILE
               </div>
-              <p className="text-xs sm:text-sm text-slate-600 font-medium leading-relaxed max-w-2xl mx-auto">
+              <p className="text-[11px] sm:text-xs text-slate-600 font-medium leading-relaxed max-w-2xl mx-auto">
                 This is to certify that <span className="text-slate-900 font-black border-b border-slate-900 pb-0.5">{fullName || "Incomplete Profile"}</span> bearing the official academic registration index code <span className="text-slate-900 font-black">{regNumber || "UNALLOCATED"}</span> has completed all scheduled structural terminal performance assessments across the designated course catalog, achieving a cumulative calculated average score of <span className="font-mono font-bold text-indigo-700 bg-indigo-50 border border-indigo-100/70 px-1.5 py-0.5 rounded">{overallAverageScore}%</span> over the course of the registered term modules.
               </p>
             </div>
             
             {/* Official Validation Stamp Footer Box Elements */}
-            <div className="mt-12 pt-8 border-t border-slate-200/80 grid grid-cols-1 sm:grid-cols-2 gap-8 print-avoid-break">
+            <div className="mt-6 pt-5 border-t border-slate-200/80 grid grid-cols-2 gap-6 items-end">
               <div className="flex flex-col items-start justify-end">
-                <div className="h-16 w-32 flex items-center justify-center mb-1 overflow-hidden relative">
+                <div className="h-12 w-28 flex items-center justify-center mb-1 overflow-hidden relative">
                   {schoolStamp && <img src={schoolStamp} alt="Official Stamp" className="max-h-full object-contain" />}
                 </div>
-                <div className="w-full max-w-[180px] print-stamp-box border-slate-200 border rounded-xl py-2 px-4 bg-slate-50/50">
-                  <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Institutional Stamp</span>
+                <div className="w-full max-w-[160px] print-stamp-box border-slate-200 border rounded-xl py-1.5 px-3 bg-slate-50/50">
+                  <span className="text-[8px] uppercase font-bold text-slate-400 tracking-wider">Institutional Stamp</span>
                 </div>
               </div>
-              <div className="flex flex-col items-center justify-end">
-                <div className="h-16 w-40 flex items-center justify-center mb-1 overflow-hidden">
+              <div className="flex flex-col items-center justify-end text-center">
+                <div className="h-12 w-32 flex items-center justify-center mb-1 overflow-hidden">
                   {adminSignature && <img src={adminSignature} alt="Signature" className="max-h-full object-contain" />}
                 </div>
-                <div className="w-full max-w-[200px] print-signature-line border-b border-slate-400 pb-1">
-                  <p className="text-xs font-black text-slate-800">Registrar Administration Office</p>
+                <div className="w-full max-w-[180px] print-signature-line border-b border-slate-400 pb-0.5">
+                  <p className="text-[11px] font-black text-slate-800">Registrar Administration Office</p>
                 </div>
-                <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider mt-1.5">Authorized Signature Validation</span>
+                <span className="text-[8px] uppercase font-bold text-slate-400 tracking-wider mt-1">Authorized Signature Validation</span>
               </div>
             </div>
 
