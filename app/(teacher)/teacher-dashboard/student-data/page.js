@@ -228,7 +228,6 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
       return;
     }
 
-    // 💡 REINFORCED LOOKUP: Check our fallback state or the student rows directly
     const activeCourseId = currentCourseId || students[0]?.course_id;
 
     if (!activeCourseId) {
@@ -256,7 +255,7 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
         .insert({
           title: assignmentTitle.trim(),
           file_url: publicFileUrl,
-          course_id: Number(activeCourseId), // Cast explicitly to Number to keep column int8 constraints happy
+          course_id: Number(activeCourseId),
           teacher_email: teacherEmail.trim().toLowerCase(),
           deadline: assignmentDeadline ? new Date(assignmentDeadline).toISOString() : null
         });
@@ -287,20 +286,20 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 sm:space-y-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full overflow-x-hidden">
       {/* Header Selector Switcher Component */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-xl font-black text-slate-800 tracking-tight">Faculty Workspace Portal</h1>
+          <h1 className="text-lg sm:text-xl font-black text-slate-800 tracking-tight">Faculty Workspace Portal</h1>
           <p className="text-xs text-slate-400 mt-0.5">Focus Subject: <span className="font-bold text-indigo-600 uppercase tracking-wide font-mono">{displayedProfile?.subject || "Core Subject"}</span></p>
         </div>
 
         <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-2xl p-2 w-full md:w-auto">
-          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono pl-2">Active Class Layer:</label>
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono pl-2 whitespace-nowrap">Active Class Layer:</label>
           <select
             value={selectedClass}
             onChange={(e) => setSelectedClass(e.target.value)}
-            className="bg-white border border-slate-200 text-slate-800 text-xs font-bold rounded-xl px-3 py-1.5 outline-none focus:border-indigo-500 uppercase font-mono cursor-pointer"
+            className="bg-white border border-slate-200 text-slate-800 text-xs font-bold rounded-xl px-3 py-1.5 outline-none focus:border-indigo-500 uppercase font-mono cursor-pointer w-full md:w-auto"
           >
             {displayedProfile?.assigned_classes?.map((cls) => (
               <option key={cls} value={cls}>
@@ -311,12 +310,12 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
+        <div className="lg:col-span-2 space-y-6 sm:space-y-8">
           
           {/* Section 1: Classroom Assessment Score Ledger Records */}
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/20">
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-slate-50/20">
               <h3 className="text-sm font-black text-slate-700 uppercase tracking-wider">
                 Classroom Mark Sheets ({selectedClass ? selectedClass.replace("_", " ") : "N/A"})
               </h3>
@@ -328,28 +327,28 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
             {students.length === 0 ? (
               <div className="p-12 text-center text-slate-400 text-sm font-medium">No registered students found matching this workspace track profile layer.</div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
+              <div className="w-full overflow-x-auto">
+                <table className="w-full text-left border-collapse min-w-[600px]">
                   <thead>
                     <tr className="bg-slate-50/75 border-b border-slate-200 text-xs font-bold text-slate-400 uppercase tracking-wider">
-                      <th className="px-6 py-4">Student Name</th>
-                      <th className="px-6 py-4">CA (20)</th>
-                      <th className="px-6 py-4">Test (30)</th>
-                      <th className="px-6 py-4">Exam (50)</th>
-                      <th className="px-6 py-4 text-right">Actions</th>
+                      <th className="px-4 sm:px-6 py-4">Student Name</th>
+                      <th className="px-4 sm:px-6 py-4">CA (20)</th>
+                      <th className="px-4 sm:px-6 py-4">Test (30)</th>
+                      <th className="px-4 sm:px-6 py-4">Exam (50)</th>
+                      <th className="px-4 sm:px-6 py-4 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-sm text-slate-600">
                     {students.map((student) => (
                       <tr key={student.id} className="hover:bg-slate-50/40 transition-colors">
-                        <td className="px-6 py-4">
-                          <div className="font-bold text-slate-800">{student.name}</div>
-                          <div className="text-xs text-slate-400 font-mono">{student.email}</div>
+                        <td className="px-4 sm:px-6 py-4">
+                          <div className="font-bold text-slate-800 break-words">{student.name}</div>
+                          <div className="text-xs text-slate-400 font-mono break-all">{student.email}</div>
                         </td>
-                        <td className="px-6 py-4 font-mono font-semibold">{student.continuous_assessment} pts</td>
-                        <td className="px-6 py-4 font-mono font-semibold">{student.mid_semester} pts</td>
-                        <td className="px-6 py-4 font-mono font-semibold">{student.final_exam} pts</td>
-                        <td className="px-6 py-4 text-right">
+                        <td className="px-4 sm:px-6 py-4 font-mono font-semibold whitespace-nowrap">{student.continuous_assessment} pts</td>
+                        <td className="px-4 sm:px-6 py-4 font-mono font-semibold whitespace-nowrap">{student.mid_semester} pts</td>
+                        <td className="px-4 sm:px-6 py-4 font-mono font-semibold whitespace-nowrap">{student.final_exam} pts</td>
+                        <td className="px-4 sm:px-6 py-4 text-right whitespace-nowrap">
                           <button
                             type="button"
                             onClick={() => handleOpenGrader(student)}
@@ -368,46 +367,46 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
 
           {/* Section 2: Inbound Student Assignments Submission Inbox */}
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="p-5 border-b border-slate-100">
+            <div className="p-4 sm:p-5 border-b border-slate-100">
               <h3 className="text-sm font-black text-slate-700 uppercase tracking-wider">📥 Inbound Submissions Received</h3>
               <p className="text-xs text-slate-400 mt-0.5">Completed task solutions submitted back live by students.</p>
             </div>
             {submissions.length === 0 ? (
               <div className="p-12 text-center text-slate-400 text-sm font-medium">No returned assignments for this selection tier channel yet.</div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
+              <div className="w-full overflow-x-auto">
+                <table className="w-full text-left border-collapse min-w-[650px]">
                   <thead>
                     <tr className="bg-slate-50/75 border-b border-slate-200 text-xs font-bold text-slate-400 uppercase tracking-wider">
-                      <th className="px-6 py-4">Student</th>
-                      <th className="px-6 py-4">Task Title</th>
-                      <th className="px-6 py-4">Turn-In Time</th>
-                      <th className="px-6 py-4 text-right">Document Asset</th>
+                      <th className="px-4 sm:px-6 py-4">Student</th>
+                      <th className="px-4 sm:px-6 py-4">Task Title</th>
+                      <th className="px-4 sm:px-6 py-4">Turn-In Time</th>
+                      <th className="px-4 sm:px-6 py-4 text-right">Document Asset</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-sm text-slate-600">
                     {submissions.map((sub) => (
                       <tr key={sub.id} className="hover:bg-slate-50/40 transition-colors">
-                        <td className="px-6 py-4 flex items-center gap-3">
+                        <td className="px-4 sm:px-6 py-4 flex items-center gap-3">
                           {sub.passport_url ? (
-                            <img src={sub.passport_url} alt="profile" className="w-9 h-9 rounded-xl object-cover border border-slate-200" />
+                            <img src={sub.passport_url} alt="profile" className="w-9 h-9 rounded-xl object-cover border border-slate-200 shrink-0" />
                           ) : (
-                            <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center text-xs text-slate-400 font-bold border border-slate-200">🧑‍🎓</div>
+                            <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center text-xs text-slate-400 font-bold border border-slate-200 shrink-0">🧑‍🎓</div>
                           )}
-                          <div>
-                            <div className="font-bold text-slate-800">{sub.student_name}</div>
-                            <div className="text-[10px] font-mono text-slate-400 font-normal">{sub.student_email}</div>
+                          <div className="min-w-0">
+                            <div className="font-bold text-slate-800 truncate">{sub.student_name}</div>
+                            <div className="text-[10px] font-mono text-slate-400 font-normal truncate">{sub.student_email}</div>
                           </div>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-4 sm:px-6 py-4">
                           <span className="inline-block bg-slate-100 border border-slate-200 rounded-lg px-2 py-0.5 text-xs max-w-xs truncate font-medium">
                             {sub.assignments?.title || "Assignment File"}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-xs font-mono text-slate-500">
+                        <td className="px-4 sm:px-6 py-4 text-xs font-mono text-slate-500 whitespace-nowrap">
                           {new Date(sub.created_at).toLocaleString()}
                         </td>
-                        <td className="px-6 py-4 text-right">
+                        <td className="px-4 sm:px-6 py-4 text-right whitespace-nowrap">
                           <a href={sub.file_url} target="_blank" rel="noreferrer" className="inline-flex items-center bg-indigo-50 border border-indigo-100 text-indigo-700 font-bold text-xs px-3 py-2 rounded-xl">
                             📁 Review Solution
                           </a>
@@ -423,7 +422,7 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
         </div>
 
         {/* Form Container: Broadcast New Assignment Task Sheet */}
-        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm h-fit space-y-4">
+        <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-sm h-fit space-y-4">
           <div>
             <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Broadcast New Task</h3>
             <p className="text-xs text-slate-400 mt-0.5">Send assignment file live to room level: <span className="uppercase font-bold text-indigo-600 font-mono">{selectedClass ? selectedClass.replace("_", " ") : "N/A"}</span></p>
@@ -475,17 +474,17 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
 
       {/* Evaluation Grading Popup Overlay Modal */}
       {selectedStudent && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-[2rem] border-8 border-indigo-950/10 max-w-md w-full overflow-hidden shadow-2xl">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-[2rem] border-8 border-indigo-950/10 max-w-md w-full overflow-hidden shadow-2xl my-auto">
+            <div className="p-4 sm:p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
               <div>
                 <h3 className="font-black text-slate-800 text-base">Record Academic Performance</h3>
                 <p className="text-[11px] font-mono text-indigo-600 font-bold mt-0.5">{selectedStudent.name}</p>
               </div>
-              <button type="button" onClick={() => setSelectedStudent(null)} className="text-slate-400 hover:text-slate-600 text-2xl">×</button>
+              <button type="button" onClick={() => setSelectedStudent(null)} className="text-slate-400 hover:text-slate-600 text-2xl p-1">×</button>
             </div>
 
-            <form onSubmit={handleUpdateGrades} className="p-6 space-y-4">
+            <form onSubmit={handleUpdateGrades} className="p-4 sm:p-6 space-y-4">
               <div>
                 <label className="block text-xs font-bold uppercase text-slate-400 tracking-wider mb-1.5">CA Score (Max 20)</label>
                 <input
@@ -526,8 +525,8 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
               </div>
 
               <div className="flex gap-3 pt-4 border-t border-slate-100 mt-6">
-                <button type="button" onClick={() => setSelectedStudent(null)} className="flex-1 bg-slate-100 text-slate-600 font-bold text-sm py-3 rounded-xl">Discard</button>
-                <button type="submit" disabled={isSaving} className="flex-1 bg-indigo-600 text-white font-bold text-sm py-3 rounded-xl shadow-md">{isSaving ? "Saving..." : "Upload Result Metrics"}</button>
+                <button type="button" onClick={() => setSelectedStudent(null)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-sm py-3 rounded-xl transition-colors cursor-pointer">Discard</button>
+                <button type="submit" disabled={isSaving} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm py-3 rounded-xl shadow-md transition-colors cursor-pointer">{isSaving ? "Saving..." : "Upload Result Metrics"}</button>
               </div>
             </form>
           </div>

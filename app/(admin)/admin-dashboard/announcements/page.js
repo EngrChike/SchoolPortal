@@ -91,15 +91,17 @@ export default function AnnouncementsPage() {
   };
 
   return (
-    <div className="h-full flex flex-col gap-6 font-sans">
+    <div className="h-full flex flex-col gap-4 sm:gap-6 font-sans w-full max-w-full overflow-x-hidden p-2 sm:p-4">
       <div>
-        <h2 className="text-2xl font-black text-slate-800 tracking-tight">📢 Broadcast Board Manager</h2>
-        <p className="text-sm text-slate-500 mt-1">Compose notices and update front page layout modules instantly.</p>
+        <h2 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">📢 Broadcast Board Manager</h2>
+        <p className="text-xs sm:text-sm text-slate-500 mt-1">Compose notices and update front page layout modules instantly.</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start flex-1">
+      {/* Responsive Grid: Stacks on mobile, splits side-by-side on desktop */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 items-start flex-1">
+        
         {/* Form Inputs */}
-        <form onSubmit={handlePublish} className="bg-slate-50 border border-slate-100 p-6 rounded-2xl space-y-4 shadow-sm">
+        <form onSubmit={handlePublish} className="bg-slate-50 border border-slate-100 p-4 sm:p-6 rounded-2xl space-y-4 shadow-sm w-full">
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">Notice Header / Title</label>
             <input
@@ -125,7 +127,7 @@ export default function AnnouncementsPage() {
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">Media File Attachment</label>
             <label className="flex flex-col items-center justify-center w-full h-28 border-2 border-slate-300 border-dashed rounded-xl cursor-pointer bg-white hover:bg-slate-50">
               <span className="text-xl mb-1">🖼️</span>
-              <p className="text-xs font-semibold text-slate-500">{image ? image.name : "Select cover banner"}</p>
+              <p className="text-xs font-semibold text-slate-500 text-center px-2 truncate max-w-full">{image ? image.name : "Select cover banner"}</p>
               <input type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
             </label>
           </div>
@@ -140,25 +142,26 @@ export default function AnnouncementsPage() {
           <button
             type="submit"
             disabled={isUploading}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-md transition-all text-sm disabled:opacity-50"
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-md transition-all text-sm disabled:opacity-50 cursor-pointer"
           >
             {isUploading ? "Processing..." : "💾 Save & Publish Broadcast"}
           </button>
         </form>
 
         {/* Live Local Sandbox Preview Panel */}
-        <div className="space-y-2">
+        <div className="space-y-2 w-full">
           <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Sandbox Layout Preview</span>
-          <div className="border border-slate-100 rounded-2xl bg-white p-4 shadow-sm">
-            <div className="flex flex-col gap-4 border p-4 rounded-xl bg-slate-50/50">
+          <div className="border border-slate-100 rounded-2xl bg-white p-3 sm:p-4 shadow-sm w-full">
+            <div className="flex flex-col gap-4 border p-3 sm:p-4 rounded-xl bg-slate-50/50 w-full overflow-hidden">
               <img src={imagePreview || "/logo.png"} className="w-full h-40 object-cover rounded-lg bg-white" alt="preview" />
-              <div>
-                <h4 className="font-black text-slate-800 text-base">{title}</h4>
-                <p className="text-xs text-slate-500 mt-1 whitespace-pre-wrap">{text || "Type details..."}</p>
+              <div className="w-full overflow-hidden">
+                <h4 className="font-black text-slate-800 text-base break-words">{title}</h4>
+                <p className="text-xs text-slate-500 mt-1 whitespace-pre-wrap break-words">{text || "Type details..."}</p>
               </div>
             </div>
           </div>
         </div>
+
       </div>
     </div>
   );

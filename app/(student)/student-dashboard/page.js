@@ -430,12 +430,12 @@ export default function StudentDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50/60 p-4 md:p-8 font-sans print:p-0 print:bg-white">
+    <div className="min-h-screen bg-slate-50/60 p-3 sm:p-4 md:p-8 font-sans print:p-0 print:bg-white overflow-x-hidden">
       
       <style dangerouslySetInnerHTML={{__html: `
         @media print {
           .no-print-wrapper { display: none !important; }
-          .print-root-container { padding: 0 !important; background: white !important; margin: 0 !important; max-width: 100% !important; }
+          .print-root-container { padding: 0 !important; background: white !important; margin: 0 !important; max-width: 100% !important; width: 100% !important; overflow: visible !important; }
           .print-sheet-node { 
             display: block !important; 
             border: none !important; 
@@ -469,52 +469,59 @@ export default function StudentDashboard() {
           }
           @page { size: A4 portrait; margin: 8mm 10mm 8mm 10mm; }
         }
+
+        /* Extra Mobile Layout Fixes */
+        @media screen and (max-width: 640px) {
+          input, select, button {
+            font-size: 16px !important; /* Prevents auto-zoom on iOS */
+          }
+        }
       `}} />
 
-      <div className="max-w-5xl mx-auto print-root-container">
+      <div className="max-w-5xl mx-auto print-root-container w-full box-border">
         
         {/* Header */}
-        <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm no-print-wrapper">
-          <div className="flex items-center space-x-4">
-            <div className="h-16 w-16 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 relative">
+        <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-4 sm:p-6 rounded-3xl sm:rounded-[2rem] border border-slate-100 shadow-sm no-print-wrapper overflow-hidden">
+          <div className="flex items-center space-x-3 sm:space-x-4 min-w-0">
+            <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 relative">
               <img src="/logo.png" alt="Logo" className="w-full h-full object-contain max-h-full max-w-full" />
             </div>
-            <div>
-              <h1 className="text-xl font-black text-slate-800 tracking-tight leading-none uppercase">Don Chike International School</h1>
-              <p className="text-xs font-bold text-indigo-600 mt-1 uppercase tracking-wider">EduPulse Student Portal Workspace</p>
-              <p className="text-[11px] text-slate-400 mt-0.5 font-mono">Session Ref Key: {currentStudentEmail}</p>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-base sm:text-xl font-black text-slate-800 tracking-tight leading-snug uppercase truncate">Don Chike International School</h1>
+              <p className="text-[11px] sm:text-xs font-bold text-indigo-600 mt-0.5 sm:mt-1 uppercase tracking-wider truncate">EduPulse Student Portal Workspace</p>
+              <p className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 font-mono truncate">Session Ref Key: {currentStudentEmail}</p>
             </div>
           </div>
-          <div className="flex items-center space-x-3 bg-slate-50 p-2 rounded-2xl border border-slate-200/60 w-fit">
-            <div className="h-9 w-9 overflow-hidden rounded-xl border border-slate-200 bg-indigo-600 flex items-center justify-center">
+          <div className="flex items-center space-x-3 bg-slate-50 p-2 rounded-2xl border border-slate-200/60 w-full sm:w-fit justify-start sm:justify-end">
+            <div className="h-9 w-9 overflow-hidden rounded-xl border border-slate-200 bg-indigo-600 flex items-center justify-center flex-shrink-0">
               {savedPassportUrl ? (
                 <img src={savedPassportUrl} alt="mini-face" className="h-full w-full object-cover" />
               ) : (
                 <span className="text-white font-mono font-bold text-xs">{regNumber ? regNumber.slice(-3) : "STU"}</span>
               )}
             </div>
-            <div className="text-left pr-2">
-              <p className="text-xs font-black text-slate-700 max-w-[140px] truncate">{fullName || "Incomplete Profile"}</p>
-              <p className="text-[10px] text-slate-400 font-mono">{regNumber || "No Identifier ID"}</p>
+            <div className="text-left pr-2 min-w-0">
+              <p className="text-xs font-black text-slate-700 truncate max-w-[180px] sm:max-w-[140px]">{fullName || "Incomplete Profile"}</p>
+              <p className="text-[10px] text-slate-400 font-mono truncate">{regNumber || "No Identifier ID"}</p>
             </div>
           </div>
         </div>
 
-        {/* Panel Tabs */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-8 bg-slate-200/50 p-2 rounded-2xl border border-slate-200/40 no-print-wrapper">
-          <button type="button" onClick={() => setActivePanel("bio_data")} className={`py-3 px-4 rounded-xl text-xs font-bold transition-all cursor-pointer ${activePanel === "bio_data" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}>📋 Student Data</button>
-          <button type="button" onClick={() => setActivePanel("course_reg")} className={`py-3 px-4 rounded-xl text-xs font-bold transition-all cursor-pointer ${activePanel === "course_reg" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}>✏️ Course Registration</button>
-          <button type="button" onClick={() => setActivePanel("assignments")} className={`py-3 px-4 rounded-xl text-xs font-bold transition-all cursor-pointer ${activePanel === "assignments" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}>📚 Assignments</button>
-          <button type="button" onClick={() => setActivePanel("results")} className={`py-3 px-4 rounded-xl text-xs font-bold transition-all cursor-pointer ${activePanel === "results" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}>📊 Results Matrix</button>
+        {/* Panel Tabs - Horizontal scrollable on smaller screens for safety */}
+        <div className="flex sm:grid sm:grid-cols-4 gap-2 mb-6 sm:mb-8 bg-slate-200/50 p-2 rounded-2xl border border-slate-200/40 no-print-wrapper overflow-x-auto scrollbar-none">
+          <button type="button" onClick={() => setActivePanel("bio_data")} className={`py-3 px-4 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex-1 text-center ${activePanel === "bio_data" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}>📋 Student Data</button>
+          <button type="button" onClick={() => setActivePanel("course_reg")} className={`py-3 px-4 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex-1 text-center ${activePanel === "course_reg" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}>✏️ Course Registration</button>
+          <button type="button" onClick={() => setActivePanel("assignments")} className={`py-3 px-4 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex-1 text-center ${activePanel === "assignments" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}>📚 Assignments</button>
+          <button type="button" onClick={() => setActivePanel("results")} className={`py-3 px-4 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex-1 text-center ${activePanel === "results" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}>📊 Results Matrix</button>
         </div>
 
-        <div>
+        <div className="w-full">
           {/* PANEL 1: STUDENT BIO DATA */}
           {activePanel === "bio_data" && (
-            <form onSubmit={handleSaveBioData} className="grid grid-cols-1 md:grid-cols-3 gap-8 no-print-wrapper">
+            <form onSubmit={handleSaveBioData} className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8 no-print-wrapper">
               <div className="bg-white p-6 rounded-3xl border border-slate-100 flex flex-col items-center justify-center text-center space-y-4 shadow-sm h-fit">
                 <label className="block text-xs font-bold uppercase text-slate-400 tracking-wider">Official Passport Photo</label>
-                <div className="h-44 w-44 rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200 overflow-hidden flex items-center justify-center relative group">
+                <div className="h-40 w-40 sm:h-44 sm:w-44 rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200 overflow-hidden flex items-center justify-center relative group">
                   {passportPreview ? (
                     <img src={passportPreview} alt="Passport" className="h-full w-full object-cover" />
                   ) : (
@@ -530,7 +537,7 @@ export default function StudentDashboard() {
                 </div>
               </div>
 
-              <div className="md:col-span-2 bg-white p-6 md:p-8 rounded-3xl border border-slate-100 shadow-sm space-y-6">
+              <div className="md:col-span-2 bg-white p-5 sm:p-6 md:p-8 rounded-3xl border border-slate-100 shadow-sm space-y-6">
                 <div>
                   <h3 className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">Section 1: Personal Details</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -576,7 +583,7 @@ export default function StudentDashboard() {
                     </div>
                     <div>
                       <label className="block text-xs font-bold uppercase text-slate-400 tracking-wider mb-1.5">Institutional Email</label>
-                      <input type="text" disabled value={currentStudentEmail} className="w-full rounded-xl border border-slate-200 p-3 text-sm text-slate-400 bg-slate-100 outline-none cursor-not-allowed" />
+                      <input type="text" disabled value={currentStudentEmail} className="w-full rounded-xl border border-slate-200 p-3 text-sm text-slate-400 bg-slate-100 outline-none cursor-not-allowed truncate" />
                     </div>
                   </div>
                 </div>
@@ -606,10 +613,10 @@ export default function StudentDashboard() {
 
           {/* PANEL 2: COURSE REGISTRATION HUB */}
           {activePanel === "course_reg" && (
-            <div className="space-y-8 no-print-wrapper">
-              <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-100 shadow-sm">
+            <div className="space-y-6 sm:space-y-8 no-print-wrapper">
+              <div className="bg-white p-5 sm:p-6 md:p-8 rounded-3xl sm:rounded-[2rem] border border-slate-100 shadow-sm">
                 <div className="mb-6">
-                  <h3 className="text-base font-black text-slate-800 tracking-tight">Add New Course Registration</h3>
+                  <h3 className="text-sm sm:text-base font-black text-slate-800 tracking-tight">Add New Course Registration</h3>
                   <p className="text-xs text-slate-400 mt-0.5">Input your target course descriptors manually to map them into your ongoing portfolio matrix.</p>
                 </div>
 
@@ -639,7 +646,7 @@ export default function StudentDashboard() {
                 </form>
               </div>
 
-              <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-100 shadow-sm">
+              <div className="bg-white p-5 sm:p-6 md:p-8 rounded-3xl sm:rounded-[2rem] border border-slate-100 shadow-sm">
                 <div className="mb-4">
                   <h3 className="text-sm font-black text-slate-700 uppercase tracking-wider">Your Registered Academic Records</h3>
                   <p className="text-xs text-slate-400 mt-0.5">Below is the localized live listing of all your currently locked academic registrations.</p>
@@ -649,13 +656,13 @@ export default function StudentDashboard() {
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {performanceRecords.map((record, index) => (
-                      <div key={index} className="p-4 rounded-xl border border-slate-200/80 bg-slate-50/40 flex items-center justify-between">
-                        <div>
-                          <span className="text-[10px] font-mono font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md uppercase">{record.courses?.code}</span>
-                          <h4 className="text-sm font-black text-slate-800 mt-1">{record.courses?.name}</h4>
-                          {record.school_term && <p className="text-[11px] text-slate-400 font-medium mt-0.5">🗓️ Term: {record.school_term}</p>}
+                      <div key={index} className="p-4 rounded-xl border border-slate-200/80 bg-slate-50/40 flex items-center justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <span className="text-[10px] font-mono font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md uppercase inline-block">{record.courses?.code}</span>
+                          <h4 className="text-sm font-black text-slate-800 mt-1 truncate">{record.courses?.name}</h4>
+                          {record.school_term && <p className="text-[11px] text-slate-400 font-medium mt-0.5 truncate">🗓️ Term: {record.school_term}</p>}
                         </div>
-                        <button type="button" onClick={() => toggleCourseRegistration(record.course_id)} className="text-xs font-bold text-rose-600 hover:text-rose-700 p-2 bg-rose-50 rounded-xl cursor-pointer">Drop</button>
+                        <button type="button" onClick={() => toggleCourseRegistration(record.course_id)} className="text-xs font-bold text-rose-600 hover:text-rose-700 py-2 px-3 bg-rose-50 rounded-xl cursor-pointer flex-shrink-0">Drop</button>
                       </div>
                     ))}
                   </div>
@@ -666,7 +673,7 @@ export default function StudentDashboard() {
 
           {/* PANEL 3: ASSIGNMENTS CONTAINER */}
           {activePanel === "assignments" && (
-            <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-100 shadow-sm no-print-wrapper">
+            <div className="bg-white p-5 sm:p-6 md:p-8 rounded-3xl sm:rounded-[2rem] border border-slate-100 shadow-sm no-print-wrapper">
               <div className="mb-6">
                 <h3 className="text-base font-black text-slate-800 tracking-tight">Active Assignment Pipelines</h3>
                 <p className="text-xs text-slate-400 mt-0.5">Task sheets distributed by faculty for your registered coursework units.</p>
@@ -684,17 +691,17 @@ export default function StudentDashboard() {
                   {courseAssignments.map((asm) => {
                     const timer = assignmentTimers[asm.id] || { displayString: "Syncing...", isExpired: false };
                     return (
-                      <div key={asm.id} className="p-5 bg-slate-50/50 border border-slate-200/60 rounded-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                        <div className="space-y-1">
+                      <div key={asm.id} className="p-4 sm:p-5 bg-slate-50/50 border border-slate-200/60 rounded-2xl flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                        <div className="space-y-1 min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="text-xs font-mono font-bold text-indigo-600 uppercase tracking-wider">{asm.courses?.code}</span>
                             <span className={`text-[9px] px-2 py-0.5 rounded font-black uppercase ${asm.hasSubmitted ? "bg-emerald-100 text-emerald-800" : timer.isExpired ? "bg-rose-100 text-rose-800" : "bg-amber-100 text-amber-800"}`}>
                               {asm.hasSubmitted ? "Turned In" : timer.isExpired ? "Terminated" : "Pending Action"}
                             </span>
                           </div>
-                          <h4 className="text-sm font-black text-slate-800 mt-1">{asm.title}</h4>
-                          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-[11px] text-slate-400 pt-1">
-                            <p>⏳ Assigned: <span className="font-medium text-slate-600">{new Date(asm.created_at).toLocaleString()}</span></p>
+                          <h4 className="text-sm font-black text-slate-800 mt-1 break-words">{asm.title}</h4>
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-[11px] text-slate-400 pt-1">
+                            <p className="truncate">⏳ Assigned: <span className="font-medium text-slate-600">{new Date(asm.created_at).toLocaleString()}</span></p>
                             {!asm.hasSubmitted && (
                               <p className={`font-mono font-bold ${timer.isExpired ? "text-rose-500" : "text-indigo-600"}`}>
                                 🕒 Remaining: {timer.displayString}
@@ -702,7 +709,7 @@ export default function StudentDashboard() {
                             )}
                           </div>
                         </div>
-                        <div className="flex gap-2 items-center w-full sm:w-auto">
+                        <div className="flex flex-wrap sm:flex-nowrap gap-2 items-center w-full md:w-auto">
                           <a href={asm.file_url} target="_blank" rel="noreferrer" className="flex-1 sm:flex-none text-center bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-3.5 py-2.5 rounded-xl transition-all">📖 Briefing File</a>
                           {asm.hasSubmitted ? (
                             <a href={asm.submittedFileUrl} target="_blank" rel="noreferrer" className="flex-1 sm:flex-none text-center bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold text-xs px-3.5 py-2.5 rounded-xl transition-all">📁 View Turn-In</a>
@@ -722,17 +729,19 @@ export default function StudentDashboard() {
 
           {/* PANEL 4: RESULTS MATRIX (Rendered via ResultViewer Component) */}
           {activePanel === "results" && (
-            <ResultViewer 
-              dbResultPin={dbResultPin}
-              regNumber={regNumber}
-              fullName={fullName}
-              studentSection={studentSection}
-              classLevel={classLevel}
-              overallAverageScore={overallAverageScore}
-              performanceRecords={performanceRecords}
-              schoolStamp={schoolStamp}
-              adminSignature={adminSignature}
-            />
+            <div className="w-full overflow-x-auto">
+              <ResultViewer 
+                dbResultPin={dbResultPin}
+                regNumber={regNumber}
+                fullName={fullName}
+                studentSection={studentSection}
+                classLevel={classLevel}
+                overallAverageScore={overallAverageScore}
+                performanceRecords={performanceRecords}
+                schoolStamp={schoolStamp}
+                adminSignature={adminSignature}
+              />
+            </div>
           )}
         </div>
 

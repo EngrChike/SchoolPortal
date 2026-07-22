@@ -177,58 +177,58 @@ export default function ManageTeachersPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 max-w-7xl mx-auto p-2 sm:p-4 w-full overflow-x-hidden font-sans">
       {/* Upper Control Strip */}
-      <div className="flex justify-between items-center bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Faculty Roster</h1>
-          <p className="text-sm text-slate-500 mt-1">Manage, onboard, and assign departmental roles to school instructors.</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight">Faculty Roster</h1>
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">Manage, onboard, and assign departmental roles to school instructors.</p>
         </div>
         <button
           onClick={handleOpenCreateModal}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm px-4 py-2.5 rounded-xl transition-all shadow-md shadow-blue-100 flex items-center gap-2 cursor-pointer"
+          className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm px-4 py-2.5 rounded-xl transition-all shadow-md shadow-blue-100 flex items-center gap-2 cursor-pointer whitespace-nowrap"
         >
           <span>➕</span> Add New Teacher
         </button>
       </div>
 
       {/* Main Roster Panel Layout */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden w-full">
         {isLoading ? (
-          <div className="p-12 text-center text-slate-500 font-medium">
+          <div className="p-12 text-center text-slate-500 font-medium text-xs sm:text-sm">
             Connecting to Supabase Database Engine...
           </div>
         ) : teachers.length === 0 ? (
-          <div className="p-12 text-center text-slate-500 font-medium">
+          <div className="p-12 text-center text-slate-500 font-medium text-xs sm:text-sm">
             No instructors currently found in database. Click 'Add New Teacher' to get started.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+          <div className="overflow-x-auto w-full">
+            <table className="w-full text-left border-collapse min-w-[700px]">
               <thead>
-                <tr className="bg-slate-50/75 border-b border-slate-200 text-xs font-bold text-slate-400 uppercase tracking-wider">
-                  <th className="px-6 py-4">Instructor ID</th>
-                  <th className="px-6 py-4">Full Name / Contacts</th>
-                  <th className="px-6 py-4">Track/Subject</th>
-                  <th className="px-6 py-4">Assigned Classrooms</th>
-                  <th className="px-6 py-4">Status Anchor</th>
-                  <th className="px-6 py-4 text-right">Actions</th>
+                <tr className="bg-slate-50/75 border-b border-slate-200 text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  <th className="px-4 sm:px-6 py-4">Instructor ID</th>
+                  <th className="px-4 sm:px-6 py-4">Full Name / Contacts</th>
+                  <th className="px-4 sm:px-6 py-4">Track/Subject</th>
+                  <th className="px-4 sm:px-6 py-4">Assigned Classrooms</th>
+                  <th className="px-4 sm:px-6 py-4">Status Anchor</th>
+                  <th className="px-4 sm:px-6 py-4 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 text-sm text-slate-600">
+              <tbody className="divide-y divide-slate-100 text-xs sm:text-sm text-slate-600">
                 {teachers.map((teacher) => (
                   <tr key={teacher.id} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="px-6 py-4 font-mono font-bold text-xs text-blue-600">{teacher.teacher_id}</td>
-                    <td className="px-6 py-4">
-                      <div className="font-semibold text-slate-800">{teacher.name}</div>
-                      <div className="text-xs text-slate-400">{teacher.email}</div>
-                      {teacher.phone && <div className="text-xs text-slate-500 font-mono mt-0.5">📞 {teacher.phone}</div>}
+                    <td className="px-4 sm:px-6 py-4 font-mono font-bold text-xs text-blue-600 whitespace-nowrap">{teacher.teacher_id}</td>
+                    <td className="px-4 sm:px-6 py-4">
+                      <div className="font-semibold text-slate-800 text-sm">{teacher.name}</div>
+                      <div className="text-[11px] sm:text-xs text-slate-400 break-all">{teacher.email}</div>
+                      {teacher.phone && <div className="text-[11px] sm:text-xs text-slate-500 font-mono mt-0.5">📞 {teacher.phone}</div>}
                     </td>
-                    <td className="px-6 py-4 font-medium text-slate-700">
+                    <td className="px-4 sm:px-6 py-4 font-medium text-slate-700 whitespace-nowrap">
                       <div className="font-bold text-slate-800 text-xs uppercase tracking-wide text-indigo-600">{teacher.school_tier} Track</div>
-                      <div className="text-xs text-slate-400 font-mono mt-0.5">{teacher.subject_specialization || "Unassigned"}</div>
+                      <div className="text-[11px] sm:text-xs text-slate-400 font-mono mt-0.5">{teacher.subject_specialization || "Unassigned"}</div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 sm:px-6 py-4">
                       <div className="flex flex-wrap gap-1 max-w-xs">
                         {teacher.assigned_classes?.length > 0 ? (
                           teacher.assigned_classes.map((cls) => (
@@ -241,7 +241,7 @@ export default function ManageTeachersPage() {
                         )}
                       </div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
                       <div className="space-y-1">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
                           teacher.status === "Active" ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "bg-amber-50 text-amber-700 border border-amber-100"
@@ -253,17 +253,17 @@ export default function ManageTeachersPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-4 sm:px-6 py-4 text-right whitespace-nowrap">
                       <div className="inline-flex gap-2">
                         <button 
                           onClick={() => handleOpenEditModal(teacher)}
-                          className="text-indigo-600 hover:text-indigo-800 font-semibold text-xs transition-colors px-3 py-1.5 rounded-lg hover:bg-indigo-50 cursor-pointer"
+                          className="text-indigo-600 hover:text-indigo-800 font-semibold text-xs transition-colors px-2.5 sm:px-3 py-1.5 rounded-lg hover:bg-indigo-50 cursor-pointer"
                         >
                           ✏️ Edit
                         </button>
                         <button 
                           onClick={() => handleDelete(teacher.id)}
-                          className="text-slate-400 hover:text-rose-600 font-semibold text-xs transition-colors px-3 py-1.5 rounded-lg hover:bg-rose-50 cursor-pointer"
+                          className="text-slate-400 hover:text-rose-600 font-semibold text-xs transition-colors px-2.5 sm:px-3 py-1.5 rounded-lg hover:bg-rose-50 cursor-pointer"
                         >
                           🗑️ Delete
                         </button>
@@ -280,18 +280,18 @@ export default function ManageTeachersPage() {
       {/* Dynamic Assignment Input Modal Form */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-lg w-full my-8 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-              <h3 className="text-lg font-bold text-slate-800">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-lg w-full my-auto overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-4 sm:p-6 border-b border-slate-100 flex justify-between items-center">
+              <h3 className="text-base sm:text-lg font-bold text-slate-800">
                 {editingTeacherId ? "Modify Faculty Settings" : "Onboard New Faculty Member"}
               </h3>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-xl cursor-pointer">×</button>
             </div>
             
-            <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[calc(100vh-10rem)] overflow-y-auto">
+            <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 max-h-[calc(100vh-10rem)] overflow-y-auto">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Full Name</label>
+                  <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-1">Full Name</label>
                   <input
                     type="text"
                     required
@@ -302,7 +302,7 @@ export default function ManageTeachersPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Institutional Email</label>
+                  <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-1">Institutional Email</label>
                   <input
                     type="email"
                     required
@@ -316,7 +316,7 @@ export default function ManageTeachersPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Phone Number</label>
+                  <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-1">Phone Number</label>
                   <input
                     type="tel"
                     required
@@ -327,7 +327,7 @@ export default function ManageTeachersPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Operational Status</label>
+                  <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-1">Operational Status</label>
                   <select
                     value={formData.status}
                     onChange={(e) => setFormData({ ...formData, status: e.target.value })}
@@ -341,7 +341,7 @@ export default function ManageTeachersPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Department Branch</label>
+                  <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-1">Department Branch</label>
                   <input
                     type="text"
                     required
@@ -352,7 +352,7 @@ export default function ManageTeachersPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Core Subject Focus</label>
+                  <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-1">Core Subject Focus</label>
                   <input
                     type="text"
                     required
@@ -365,7 +365,7 @@ export default function ManageTeachersPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Operational Track Tier</label>
+                <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-1">Operational Track Tier</label>
                 <select
                   value={formData.school_tier}
                   onChange={(e) => handleTierChange(e.target.value)}
@@ -388,17 +388,17 @@ export default function ManageTeachersPage() {
                         type="checkbox"
                         checked={formData.assigned_classes.includes(cls)}
                         onChange={() => handleClassCheckboxChange(cls)}
-                        className="h-3.5 w-3.5 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                        className="h-3.5 w-3.5 text-blue-600 rounded border-slate-300 focus:ring-blue-500 flex-shrink-0"
                       />
-                      <span className="uppercase text-slate-700 font-mono text-[11px]">{cls.replace("_", " ")}</span>
+                      <span className="uppercase text-slate-700 font-mono text-[11px] truncate">{cls.replace("_", " ")}</span>
                     </label>
                   ))}
                 </div>
               </div>
 
               <div className="flex gap-4 pt-4 border-t border-slate-100 mt-6">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 bg-slate-100 text-slate-700 font-semibold text-sm py-2.5 rounded-xl cursor-pointer">Cancel</button>
-                <button type="submit" disabled={isSubmitting} className="flex-1 bg-blue-600 text-white font-semibold text-sm py-2.5 rounded-xl cursor-pointer shadow-md">
+                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 bg-slate-100 text-slate-700 font-semibold text-xs sm:text-sm py-2.5 rounded-xl cursor-pointer">Cancel</button>
+                <button type="submit" disabled={isSubmitting} className="flex-1 bg-blue-600 text-white font-semibold text-xs sm:text-sm py-2.5 rounded-xl cursor-pointer shadow-md">
                   {isSubmitting ? "Saving..." : editingTeacherId ? "Update Record" : "Save Record"}
                 </button>
               </div>

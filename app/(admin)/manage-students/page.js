@@ -226,19 +226,19 @@ export default function AdminManageStudentsPage() {
   );
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto p-2">
+    <div className="space-y-4 sm:space-y-6 max-w-7xl mx-auto p-2 sm:p-4 w-full overflow-x-hidden font-sans">
       
       {/* INSTITUTIONAL SETTINGS MANAGEMENT BLOCK */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+      <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
         <div>
-          <h2 className="text-base font-black text-slate-800 tracking-tight uppercase">Institutional Branding & Verification Assets</h2>
+          <h2 className="text-sm sm:text-base font-black text-slate-800 tracking-tight uppercase">Institutional Branding & Verification Assets</h2>
           <p className="text-xs text-slate-400 mt-0.5">Upload central graphic properties used to populate headers, stamps, and signatures automatically.</p>
         </div>
 
         {settingsLoading ? (
           <div className="text-xs font-mono text-slate-400 animate-pulse">Syncing layout asset references...</div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 pt-2">
             <div className="p-4 rounded-xl border border-slate-100 bg-slate-50/60 flex flex-col items-center justify-between space-y-3">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">1. School Crest Logo</span>
               <div className="h-16 w-16 bg-white border border-slate-200 rounded-xl overflow-hidden flex items-center justify-center p-1">
@@ -276,14 +276,14 @@ export default function AdminManageStudentsPage() {
       </div>
 
       {/* REGISTRY BANNER TOOLBAR */}
-      <div className="flex justify-between items-center bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm gap-4">
         <div>
-          <h1 className="text-xl font-black text-slate-800 tracking-tight uppercase">Student Registry Engine</h1>
+          <h1 className="text-lg sm:text-xl font-black text-slate-800 tracking-tight uppercase">Student Registry Engine</h1>
           <p className="text-xs text-slate-500 mt-0.5">Onboard student profiles, manage passports, and assign result lock key tokens.</p>
         </div>
         <button
           onClick={handleOpenOnboardModal}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-md shadow-blue-100 flex items-center gap-2 cursor-pointer"
+          className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-md shadow-blue-100 flex items-center gap-2 cursor-pointer whitespace-nowrap"
         >
           <span>➕</span> Onboard New Student
         </button>
@@ -293,7 +293,7 @@ export default function AdminManageStudentsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
         {/* SIDEBAR TIER LEVEL CONTROLS PANEL */}
-        <div className="lg:col-span-3 bg-white border border-slate-200 shadow-sm rounded-2xl p-4 space-y-6">
+        <div className="lg:col-span-3 bg-white border border-slate-200 shadow-sm rounded-2xl p-4 space-y-6 w-full">
           
           {/* Master Tier Selector Triggers */}
           <div className="flex flex-col gap-2">
@@ -342,7 +342,7 @@ export default function AdminManageStudentsPage() {
         </div>
 
         {/* MAIN DATA DIRECTORY SHEET */}
-        <div className="lg:col-span-9 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="lg:col-span-9 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden w-full">
           <div className="bg-slate-50/70 p-4 border-b border-slate-200 flex flex-wrap justify-between items-center gap-2">
             <span className="text-xs font-black text-slate-700 tracking-tight uppercase">
               Viewing Roster: <span className="text-blue-600 font-mono bg-blue-50 border border-blue-100 px-2 py-0.5 rounded ml-1">{formatClassLabel(activeClass)}</span>
@@ -357,22 +357,22 @@ export default function AdminManageStudentsPage() {
           ) : filteredStudents.length === 0 ? (
             <div className="p-12 text-center text-slate-400 text-xs font-medium">No students registered under this specific classroom selection stack.</div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-left border-collapse min-w-[600px]">
                 <thead>
                   <tr className="bg-slate-50/40 border-b border-slate-200 text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                    <th className="px-6 py-4">Avatar Profile</th>
-                    <th className="px-6 py-4">Reg Number</th>
-                    <th className="px-6 py-4">Full Legal Name</th>
-                    <th className="px-6 py-4">Session/Term Info</th>
-                    <th className="px-6 py-4 text-center">Security Access PIN</th>
+                    <th className="px-4 sm:px-6 py-4">Avatar Profile</th>
+                    <th className="px-4 sm:px-6 py-4">Reg Number</th>
+                    <th className="px-4 sm:px-6 py-4">Full Legal Name</th>
+                    <th className="px-4 sm:px-6 py-4">Session/Term Info</th>
+                    <th className="px-4 sm:px-6 py-4 text-center">Security Access PIN</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs text-slate-600 font-medium">
                   {filteredStudents.map((student) => (
                     <tr key={student.id} className="hover:bg-slate-50/40 transition-colors">
-                      <td className="px-6 py-3">
-                        <div className="h-10 w-10 rounded-xl border border-slate-200 bg-slate-100 overflow-hidden flex items-center justify-center">
+                      <td className="px-4 sm:px-6 py-3">
+                        <div className="h-10 w-10 rounded-xl border border-slate-200 bg-slate-100 overflow-hidden flex items-center justify-center flex-shrink-0">
                           {student.passport_url ? (
                             <img src={student.passport_url} alt="passport" className="h-full w-full object-cover" />
                           ) : (
@@ -381,19 +381,19 @@ export default function AdminManageStudentsPage() {
                         </div>
                       </td>
 
-                      <td className="px-6 py-4 font-mono font-bold text-blue-600">{student.reg_number}</td>
+                      <td className="px-4 sm:px-6 py-4 font-mono font-bold text-blue-600 whitespace-nowrap">{student.reg_number}</td>
                       
-                      <td className="px-6 py-4">
-                        <div className="font-bold text-slate-800 text-sm">{student.name}</div>
-                        <div className="text-[10px] text-slate-400 font-mono mt-0.5">{student.email}</div>
+                      <td className="px-4 sm:px-6 py-4">
+                        <div className="font-bold text-slate-800 text-sm break-words">{student.name}</div>
+                        <div className="text-[10px] text-slate-400 font-mono mt-0.5 break-all">{student.email}</div>
                       </td>
                       
-                      <td className="px-6 py-4 font-mono text-[11px]">
+                      <td className="px-4 sm:px-6 py-4 font-mono text-[11px] whitespace-nowrap">
                         <div className="text-slate-700 font-bold">{student.academic_session}</div>
                         <div className="text-indigo-600 text-[10px] font-bold uppercase tracking-wide mt-0.5">{student.current_term?.replace("_", " ")}</div>
                       </td>
 
-                      <td className="px-6 py-4 text-center">
+                      <td className="px-4 sm:px-6 py-4 text-center whitespace-nowrap">
                         {student.result_pin ? (
                           <div className="inline-flex flex-col items-center space-y-1">
                             <span className="bg-indigo-50 border border-indigo-200 text-indigo-700 font-mono font-black text-sm px-3 py-1 rounded-lg tracking-widest shadow-inner">
@@ -422,14 +422,14 @@ export default function AdminManageStudentsPage() {
 
       {/* ONBOARD MODAL INTERFACE */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-              <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">Onboard Pre-Account System</h3>
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150 my-auto">
+            <div className="p-4 sm:p-6 border-b border-slate-100 flex justify-between items-center">
+              <h3 className="text-xs sm:text-sm font-black text-slate-800 uppercase tracking-tight">Onboard Pre-Account System</h3>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-xl cursor-pointer">×</button>
             </div>
             
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1.5 tracking-wider">Student Full Name</label>
