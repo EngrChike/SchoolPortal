@@ -36,8 +36,7 @@ export default function CentralAuthGateway() {
         setProfile({
           name: "System Director",
           identifier: "Central Admin Node",
-          // Fix: Ensure this isn't masking empty fields if you want strict validation checks
-          storedPassword: adminRow?.password || null
+          storedPassword: adminRow?.password || ""
         });
         setIsChecking(false);
         return;
@@ -54,7 +53,7 @@ export default function CentralAuthGateway() {
         setProfile({
           name: teacher.name,
           identifier: teacher.department || "Faculty Board",
-          storedPassword: teacher.password || null
+          storedPassword: teacher.password || ""
         });
         setIsChecking(false);
         return;
@@ -71,7 +70,7 @@ export default function CentralAuthGateway() {
         setProfile({
           name: student.name,
           identifier: student.reg_number,
-          storedPassword: student.password || null
+          storedPassword: student.password || ""
         });
         setIsChecking(false);
         return;
@@ -97,8 +96,16 @@ export default function CentralAuthGateway() {
       else if (userRole === "teacher") targetTable = "teachers";
       else if (userRole === "student") targetTable = "students";
 
-      // Case A: Stored password field missing entirely -> Commit new profile access string
-      if (!profile.storedPassword) {
+      // Strict enforcement: If a password already exists, validate it strictly.
+      if (profile.storedPassword && profile.storedPassword.trim() !== "") {
+        if (profile.storedPassword.trim() !== cleanInputPassword) {
+          alert("❌ Incorrect Password! Access verification failed.");
+          setIsSubmitting(false);
+          return;
+        }
+      } 
+      // Only allow setting a password if none has ever been created for this account
+      else {
         const { error } = await supabase
           .from(targetTable)
           .update({ password: cleanInputPassword })
@@ -108,12 +115,6 @@ export default function CentralAuthGateway() {
         
         profile.storedPassword = cleanInputPassword;
         alert("🔒 Password configured and saved permanently for this account profile!");
-      } 
-      // Case B: Evaluate against exact database string match ruleset securely
-      else if (String(profile.storedPassword).trim() !== cleanInputPassword) {
-        alert("❌ Incorrect Password! Access verification failed.");
-        setIsSubmitting(false);
-        return;
       }
 
       // Commit Active Role Session context to storage
