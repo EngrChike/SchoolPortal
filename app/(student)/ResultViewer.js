@@ -40,7 +40,6 @@ export default function ResultViewer({
       {/* Advanced Print CSS to wipe out browser headers/footers and lock everything into page 1 */}
       <style dangerouslySetInnerHTML={{__html: `
         @media print {
-          /* Hide browser default headers, footers, URLs, and date stamps */
           @page {
             size: A4 portrait;
             margin: 0mm !important;
@@ -59,7 +58,6 @@ export default function ResultViewer({
             display: none !important; 
           }
 
-          /* Force container to absolute top with zero margin/padding */
           .print-sheet-node { 
             display: block !important; 
             border: none !important; 
@@ -72,7 +70,6 @@ export default function ResultViewer({
             position: absolute !important;
             top: 0 !important;
             left: 0 !important;
-            /* Slightly scale down content so stamp and signature fit safely */
             transform: scale(0.92);
             transform-origin: top center;
           }
@@ -160,16 +157,16 @@ export default function ResultViewer({
               </div>
             </div>
 
-            {/* Performance Table */}
+            {/* Performance Table with Reduced Row Padding */}
             <div className="mb-3">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b-2 border-slate-700 text-[9px] font-black uppercase text-slate-400">
-                    <th className="py-1.5 px-2">Code</th>
-                    <th className="py-1.5 px-2">Course Module Title</th>
-                    <th className="py-1.5 px-2 text-center">CA (40)</th>
-                    <th className="py-1.5 px-2 text-center">Exam (60)</th>
-                    <th className="py-1.5 px-2 text-center">Total (100)</th>
+                    <th className="py-1 px-2">Code</th>
+                    <th className="py-1 px-2">Course Module Title</th>
+                    <th className="py-1 px-2 text-center">CA (40)</th>
+                    <th className="py-1 px-2 text-center">Exam (60)</th>
+                    <th className="py-1 px-2 text-center">Total (100)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-[11px] text-slate-700">
@@ -182,11 +179,12 @@ export default function ResultViewer({
 
                     return (
                       <tr key={i}>
-                        <td className="py-1.5 px-2 font-mono font-bold text-indigo-600 uppercase">{rec.courses?.code || "N/A"}</td>
-                        <td className="py-1.5 px-2 font-black text-slate-800 truncate max-w-[200px]">{rec.courses?.name || "N/A"}</td>
-                        <td className="py-1.5 px-2 text-center font-mono text-slate-600">{compositeCA}</td>
-                        <td className="py-1.5 px-2 text-center font-mono text-slate-600">{exam}</td>
-                        <td className="py-1.5 px-2 text-center font-bold font-mono text-slate-900 bg-slate-50">{totalGrade}%</td>
+                        {/* Reduced vertical row padding from py-1.5 to py-1 to bring rows closer */}
+                        <td className="py-1 px-2 font-mono font-bold text-indigo-600 uppercase">{rec.courses?.code || "N/A"}</td>
+                        <td className="py-1 px-2 font-black text-slate-800 truncate max-w-[200px]">{rec.courses?.name || "N/A"}</td>
+                        <td className="py-1 px-2 text-center font-mono text-slate-600">{compositeCA}</td>
+                        <td className="py-1 px-2 text-center font-mono text-slate-600">{exam}</td>
+                        <td className="py-1 px-2 text-center font-bold font-mono text-slate-900 bg-slate-50">{totalGrade}%</td>
                       </tr>
                     );
                   })}
