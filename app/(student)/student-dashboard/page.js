@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import ResultViewer from "@/components/ResultViewer"; 
+import ResultViewer from "../ResultViewer";
 
 export default function StudentDashboard() {
   const router = useRouter();
