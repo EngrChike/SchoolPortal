@@ -18,13 +18,42 @@ export default function ManageTeachersPage() {
     status: "Active",
     school_tier: "secondary",
     subject_specialization: "",
-    assigned_classes: []
+    assigned_classes: [],
+    assigned_subjects: []
   });
 
   const classOptions = {
     primary: ["primary_1", "primary_2", "primary_3", "primary_4", "primary_5", "primary_6"],
     secondary: ["jss1", "jss2", "jss3", "ss1", "ss2", "ss3"]
   };
+
+  const primarySubjectsList = [
+    { code: "ENG-PRI", title: "English Studies" },
+    { code: "MTH-PRI", title: "Mathematics" },
+    { code: "BST-PRI", title: "Basic Science and Technology" },
+    { code: "PHE-PRI", title: "Physical and Health Education" },
+    { code: "CCA-PRI", title: "Cultural and Creative Arts" },
+    { code: "CRS-PRI", title: "Christian Religious Studies" },
+    { code: "IRS-PRI", title: "Islamic Religious Studies" },
+    { code: "SOS-PRI", title: "Social Studies" },
+    { code: "GAR-PRI", title: "Agricultural Science" }
+  ];
+
+  const secondarySubjectsList = [
+    { code: "MTH-SEC", title: "Mathematics" },
+    { code: "ENG-SEC", title: "English Language" },
+    { code: "BIO-SEC", title: "Biology" },
+    { code: "CHM-SEC", title: "Chemistry" },
+    { code: "PHY-SEC", title: "Physics" },
+    { code: "ECO-SEC", title: "Economics" },
+    { code: "GOV-SEC", title: "Government" },
+    { code: "CRS-SEC", title: "Christian Religious Studies" },
+    { code: "AGR-SEC", title: "Agricultural Science" },
+    { code: "ACC-SEC", title: "Financial Accounting" },
+    { code: "GEO-SEC", title: "Geography" },
+    { code: "LIT-SEC", title: "Literature-in-English" },
+    { code: "CMP-SEC", title: "Computer Studies / ICT" }
+  ];
 
   // 1. Fetch Teachers from Supabase
   async function fetchTeachers() {
@@ -64,12 +93,29 @@ export default function ManageTeachersPage() {
     }
   };
 
+  // Toggle dynamic subject selections in form state array
+  const handleSubjectCheckboxChange = (subjectCode) => {
+    const currentSelection = [...formData.assigned_subjects];
+    if (currentSelection.includes(subjectCode)) {
+      setFormData({
+        ...formData,
+        assigned_subjects: currentSelection.filter((item) => item !== subjectCode)
+      });
+    } else {
+      setFormData({
+        ...formData,
+        assigned_subjects: [...currentSelection, subjectCode]
+      });
+    }
+  };
+
   // Reset arrays when changing major tracks to demarcate tracks
   const handleTierChange = (tier) => {
     setFormData({
       ...formData,
       school_tier: tier,
-      assigned_classes: []
+      assigned_classes: [],
+      assigned_subjects: []
     });
   };
 
@@ -84,7 +130,8 @@ export default function ManageTeachersPage() {
       status: "Active",
       school_tier: "secondary",
       subject_specialization: "",
-      assigned_classes: []
+      assigned_classes: [],
+      assigned_subjects: []
     });
     setIsModalOpen(true);
   };
@@ -100,7 +147,8 @@ export default function ManageTeachersPage() {
       status: teacher.status || "Active",
       school_tier: teacher.school_tier || "secondary",
       subject_specialization: teacher.subject_specialization || "",
-      assigned_classes: teacher.assigned_classes || []
+      assigned_classes: teacher.assigned_classes || [],
+      assigned_subjects: teacher.assigned_subjects || []
     });
     setIsModalOpen(true);
   };
@@ -117,6 +165,12 @@ export default function ManageTeachersPage() {
         validTierOptions.includes(cls)
       );
 
+      const activeSubjectList = formData.school_tier === "primary" ? primarySubjectsList : secondarySubjectsList;
+      const validSubjectCodes = activeSubjectList.map(s => s.code);
+      const strictAssignedSubjects = formData.assigned_subjects.filter(subj => 
+        validSubjectCodes.includes(subj)
+      );
+
       const payload = {
         name: formData.name,
         email: formData.email.trim().toLowerCase(),
@@ -126,6 +180,7 @@ export default function ManageTeachersPage() {
         school_tier: formData.school_tier,
         subject_specialization: formData.subject_specialization,
         assigned_classes: strictAssignedClasses,
+        assigned_subjects: strictAssignedSubjects,
       };
 
       if (editingTeacherId) {
@@ -179,6 +234,13 @@ export default function ManageTeachersPage() {
     }
   }
 
+  // Helper mapper to show subject title from code in table view
+  const getSubjectTitle = (code, tier) => {
+    const list = tier === "primary" ? primarySubjectsList : secondarySubjectsList;
+    const found = list.find(s => s.code === code);
+    return found ? found.title : code;
+  };
+
   return (
     <div className="space-y-4 sm:space-y-6 max-w-7xl mx-auto p-2 sm:p-4 w-full overflow-x-hidden font-sans">
       {/* Upper Control Strip */}
@@ -207,13 +269,14 @@ export default function ManageTeachersPage() {
           </div>
         ) : (
           <div className="overflow-x-auto w-full">
-            <table className="w-full text-left border-collapse min-w-[700px]">
+            <table className="w-full text-left border-collapse min-w-[800px]">
               <thead>
                 <tr className="bg-slate-50/75 border-b border-slate-200 text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider">
                   <th className="px-4 sm:px-6 py-4">Instructor ID</th>
                   <th className="px-4 sm:px-6 py-4">Full Name / Contacts</th>
-                  <th className="px-4 sm:px-6 py-4">Track/Subject</th>
+                  <th className="px-4 sm:px-6 py-4">Track/Focus</th>
                   <th className="px-4 sm:px-6 py-4">Assigned Classrooms</th>
+                  <th className="px-4 sm:px-6 py-4">Assigned Subjects</th>
                   <th className="px-4 sm:px-6 py-4">Status Anchor</th>
                   <th className="px-4 sm:px-6 py-4 text-right">Actions</th>
                 </tr>
@@ -237,6 +300,19 @@ export default function ManageTeachersPage() {
                           teacher.assigned_classes.map((cls) => (
                             <span key={cls} className="bg-slate-100 font-mono border border-slate-200 text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded uppercase">
                               {cls.replace("_", " ")}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-xs text-slate-400 italic">None Assigned</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 sm:px-6 py-4">
+                      <div className="flex flex-wrap gap-1 max-w-xs">
+                        {teacher.assigned_subjects?.length > 0 ? (
+                          teacher.assigned_subjects.map((subjCode) => (
+                            <span key={subjCode} className="bg-indigo-50 border border-indigo-100 text-indigo-700 text-[10px] font-semibold px-2 py-0.5 rounded">
+                              {getSubjectTitle(subjCode, teacher.school_tier)}
                             </span>
                           ))
                         ) : (
@@ -283,7 +359,7 @@ export default function ManageTeachersPage() {
       {/* Dynamic Assignment Input Modal Form */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-lg w-full my-auto overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-xl w-full my-auto overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             <div className="p-4 sm:p-6 border-b border-slate-100 flex justify-between items-center">
               <h3 className="text-base sm:text-lg font-bold text-slate-800">
                 {editingTeacherId ? "Modify Faculty Settings" : "Onboard New Faculty Member"}
@@ -379,7 +455,7 @@ export default function ManageTeachersPage() {
                 </select>
               </div>
 
-              {/* Dynamic Checkboxes Container Workspace Matrix */}
+              {/* Dynamic Checkboxes Container Workspace Matrix for Classes */}
               <div className="p-4 rounded-xl border border-slate-100 bg-slate-50/60">
                 <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 tracking-wider">
                   Check Class Assignment Allocations ({formData.school_tier.toUpperCase()})
@@ -394,6 +470,29 @@ export default function ManageTeachersPage() {
                         className="h-3.5 w-3.5 text-blue-600 rounded border-slate-300 focus:ring-blue-500 flex-shrink-0"
                       />
                       <span className="uppercase text-slate-700 font-mono text-[11px] truncate">{cls.replace("_", " ")}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Dynamic Checkboxes Container Workspace Matrix for Subjects */}
+              <div className="p-4 rounded-xl border border-slate-100 bg-slate-50/60">
+                <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 tracking-wider">
+                  Assign Course Subjects ({formData.school_tier.toUpperCase()})
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {(formData.school_tier === "primary" ? primarySubjectsList : secondarySubjectsList).map((subj) => (
+                    <label key={subj.code} className="flex items-center gap-2 bg-white p-2 border border-slate-200 rounded-lg text-xs font-bold cursor-pointer hover:bg-slate-50 select-none">
+                      <input
+                        type="checkbox"
+                        checked={formData.assigned_subjects.includes(subj.code)}
+                        onChange={() => handleSubjectCheckboxChange(subj.code)}
+                        className="h-3.5 w-3.5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 flex-shrink-0"
+                      />
+                      <div className="truncate">
+                        <span className="block text-slate-800 text-xs font-medium">{subj.title}</span>
+                        <span className="block font-mono text-[9px] text-slate-400">{subj.code}</span>
+                      </div>
                     </label>
                   ))}
                 </div>
