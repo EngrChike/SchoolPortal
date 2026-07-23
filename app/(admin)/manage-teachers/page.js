@@ -125,7 +125,7 @@ export default function ManageTeachersPage() {
         status: formData.status,
         school_tier: formData.school_tier,
         subject_specialization: formData.subject_specialization,
-        assigned_classes: strictAssignedClasses, // Uses clean, isolated array
+        assigned_classes: strictAssignedClasses,
       };
 
       if (editingTeacherId) {
@@ -136,6 +136,7 @@ export default function ManageTeachersPage() {
           .eq("id", editingTeacherId);
 
         if (error) throw error;
+        alert("✨ Faculty profile updated successfully!");
       } else {
         // Create Action Block
         const generatedId = `TCH-${Math.floor(100 + Math.random() * 900)}`;
@@ -148,6 +149,7 @@ export default function ManageTeachersPage() {
         ]);
 
         if (error) throw error;
+        alert("🎉 Faculty member successfully onboarded!");
       }
 
       setIsModalOpen(false);
@@ -170,6 +172,7 @@ export default function ManageTeachersPage() {
         .eq("id", id);
 
       if (error) throw error;
+      alert("🗑️ Teacher record successfully deleted!");
       fetchTeachers();
     } catch (error) {
       alert("Failed to delete record: " + error.message);
@@ -195,7 +198,7 @@ export default function ManageTeachersPage() {
       {/* Main Roster Panel Layout */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden w-full">
         {isLoading ? (
-          <div className="p-12 text-center text-slate-500 font-medium text-xs sm:text-sm">
+          <div className="p-12 text-center text-slate-500 font-medium text-xs sm:text-sm animate-pulse">
             Connecting to Supabase Database Engine...
           </div>
         ) : teachers.length === 0 ? (
@@ -257,13 +260,13 @@ export default function ManageTeachersPage() {
                       <div className="inline-flex gap-2">
                         <button 
                           onClick={() => handleOpenEditModal(teacher)}
-                          className="text-indigo-600 hover:text-indigo-800 font-semibold text-xs transition-colors px-2.5 sm:px-3 py-1.5 rounded-lg hover:bg-indigo-50 cursor-pointer"
+                          className="text-indigo-600 hover:text-indigo-800 font-semibold text-xs transition-colors px-2.5 sm:px-3 py-1.5 rounded-lg hover:bg-indigo-50 cursor-pointer border border-indigo-100 bg-indigo-50/30"
                         >
                           ✏️ Edit
                         </button>
                         <button 
                           onClick={() => handleDelete(teacher.id)}
-                          className="text-slate-400 hover:text-rose-600 font-semibold text-xs transition-colors px-2.5 sm:px-3 py-1.5 rounded-lg hover:bg-rose-50 cursor-pointer"
+                          className="text-slate-400 hover:text-rose-600 font-semibold text-xs transition-colors px-2.5 sm:px-3 py-1.5 rounded-lg hover:bg-rose-50 cursor-pointer border border-slate-200 bg-slate-50"
                         >
                           🗑️ Delete
                         </button>
@@ -297,7 +300,7 @@ export default function ManageTeachersPage() {
                     required
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full rounded-xl border border-slate-200 p-2.5 text-sm text-slate-800 outline-none focus:border-blue-600"
+                    className="w-full rounded-xl border border-slate-200 p-2.5 text-sm text-slate-800 outline-none focus:border-blue-600 bg-slate-50/50"
                     placeholder="e.g. Arnold Chike"
                   />
                 </div>
@@ -308,7 +311,7 @@ export default function ManageTeachersPage() {
                     required
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full rounded-xl border border-slate-200 p-2.5 text-sm text-slate-800 outline-none focus:border-blue-600"
+                    className="w-full rounded-xl border border-slate-200 p-2.5 text-sm text-slate-800 outline-none focus:border-blue-600 bg-slate-50/50"
                     placeholder="teacher@edupulse.com"
                   />
                 </div>
@@ -322,7 +325,7 @@ export default function ManageTeachersPage() {
                     required
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    className="w-full rounded-xl border border-slate-200 p-2.5 text-sm text-slate-800 outline-none focus:border-blue-600"
+                    className="w-full rounded-xl border border-slate-200 p-2.5 text-sm text-slate-800 outline-none focus:border-blue-600 bg-slate-50/50"
                     placeholder="e.g. +225 0700000000"
                   />
                 </div>
@@ -347,7 +350,7 @@ export default function ManageTeachersPage() {
                     required
                     value={formData.department}
                     onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                    className="w-full rounded-xl border border-slate-200 p-2.5 text-sm text-slate-800 outline-none focus:border-blue-600"
+                    className="w-full rounded-xl border border-slate-200 p-2.5 text-sm text-slate-800 outline-none focus:border-blue-600 bg-slate-50/50"
                     placeholder="e.g. Sciences"
                   />
                 </div>
@@ -358,7 +361,7 @@ export default function ManageTeachersPage() {
                     required
                     value={formData.subject_specialization}
                     onChange={(e) => setFormData({ ...formData, subject_specialization: e.target.value })}
-                    className="w-full rounded-xl border border-slate-200 p-2.5 text-sm text-slate-800 outline-none focus:border-blue-600"
+                    className="w-full rounded-xl border border-slate-200 p-2.5 text-sm text-slate-800 outline-none focus:border-blue-600 bg-slate-50/50"
                     placeholder="e.g. Mathematics"
                   />
                 </div>
