@@ -348,12 +348,12 @@ export default function ManageTeachersPage() {
                     <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
                       <div className="space-y-1">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
-                          teacher.status === "Active" ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "bg-amber-50 text-amber-700 border border-amber-100"
+                          teacher.status === "Active" ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "bg-rose-50 text-rose-700 border border-rose-100"
                         }`}>
                           {teacher.status}
                         </span>
                         <div className="text-[10px] text-slate-400 font-mono">
-                          {teacher.password_configured ? "🔐 Portal Active" : "⏳ Pending Set"}
+                          {teacher.status === "Active" ? (teacher.password_configured ? "🔐 Portal Active" : "⏳ Pending Set") : "🚫 Access Blocked"}
                         </div>
                       </div>
                     </td>
@@ -437,8 +437,8 @@ export default function ManageTeachersPage() {
                     onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                     className="w-full rounded-xl border border-slate-200 p-2.5 text-sm text-slate-800 bg-white"
                   >
-                    <option value="Active">Active</option>
-                    <option value="Suspended">Suspended</option>
+                    <option value="Active">Active (Member / Portal Access Allowed)</option>
+                    <option value="Suspended">Suspended (Blocked / Portal Access Denied)</option>
                   </select>
                 </div>
               </div>
