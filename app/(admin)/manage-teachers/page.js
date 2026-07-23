@@ -9,7 +9,9 @@ export default function ManageTeachersPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingTeacherId, setEditingTeacherId] = useState(null);
-  const [activeTab, setActiveTab] = useState("secondary"); // "secondary" or "primary"
+  
+  // Tab control for separating Primary vs Secondary roster views
+  const [activeTab, setActiveTab] = useState("secondary");
 
   const [formData, setFormData] = useState({
     name: "",
@@ -38,10 +40,11 @@ export default function ManageTeachersPage() {
     { code: "GAR-PRI", title: "Agricultural Science" }
   ];
 
+  // Combined secondary and junior/senior subjects list spanning JSS1 through SS3
   const secondarySubjectsList = [
-    { code: "MTH-SEC", title: "Mathematics (JSS1 - SS3)" },
-    { code: "ENG-SEC", title: "English Language (JSS1 - SS3)" },
-    { code: "BIO-SEC", title: "Biology" },
+    { code: "MTH-SEC", title: "Mathematics (JSS - SS)" },
+    { code: "ENG-SEC", title: "English Language (JSS - SS)" },
+    { code: "BIO-SEC", title: "Biology (JSS Basic Science / SS Bio)" },
     { code: "CHM-SEC", title: "Chemistry" },
     { code: "PHY-SEC", title: "Physics" },
     { code: "ECO-SEC", title: "Economics" },
@@ -52,11 +55,9 @@ export default function ManageTeachersPage() {
     { code: "GEO-SEC", title: "Geography" },
     { code: "LIT-SEC", title: "Literature-in-English" },
     { code: "CMP-SEC", title: "Computer Studies / ICT" },
-    { code: "BAS-JSS", title: "Basic Science (JSS1 - Jss3)" },
-    { code: "BAT-JSS", title: "Basic Technology (JSS1 - Jss3)" },
-    { code: "BUS-JSS", title: "Business Studies (JSS1 - Jss3)" },
-    { code: "CIV-SEC", title: "Civic Education (JSS1 - SS3)" },
-    { code: "FRE-SEC", title: "French Language" }
+    { code: "BUS-SEC", title: "Business Studies (JSS)" },
+    { code: "BAS-SEC", title: "Basic Science (JSS)" },
+    { code: "SST-SEC", title: "Social Studies / Civics (JSS)" }
   ];
 
   // 1. Fetch Teachers from Supabase
@@ -131,7 +132,7 @@ export default function ManageTeachersPage() {
       email: "",
       phone: "",
       status: "Active",
-      school_tier: activeTab, // Defaults to whatever tab user is viewing
+      school_tier: activeTab, // Defaults to whatever tab view admin is currently viewing
       assigned_classes: [],
       assigned_subjects: []
     });
@@ -176,6 +177,7 @@ export default function ManageTeachersPage() {
         phone: formData.phone.trim(),
         status: formData.status,
         school_tier: formData.school_tier,
+        subject_specialization: formData.assigned_subjects.length > 0 ? formData.assigned_subjects[0] : "", // fallback sync
         assigned_classes: strictAssignedClasses,
         assigned_subjects: strictAssignedSubjects,
       };
@@ -236,16 +238,16 @@ export default function ManageTeachersPage() {
     return found ? found.title : code;
   };
 
-  // Filter teachers based on active tab view
-  const filteredTeachers = teachers.filter(t => (t.school_tier || "secondary") === activeTab);
+  // Filter teachers explicitly by selected tier tab view
+  const filteredTeachers = teachers.filter(t => t.school_tier === activeTab);
 
   return (
     <div className="space-y-4 sm:space-y-6 max-w-7xl mx-auto p-2 sm:p-4 w-full overflow-x-hidden font-sans">
       {/* Upper Control Strip */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight">Faculty Roster</h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1">Manage, onboard, and assign classroom and subject workloads to instructors.</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight">Faculty Roster & Tracking</h1>
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">Organize and manage instructors across separate primary and secondary school tracks.</p>
         </div>
         <button
           onClick={handleOpenCreateModal}
@@ -256,30 +258,30 @@ export default function ManageTeachersPage() {
       </div>
 
       {/* Tier Switcher Tabs for Easy Tracking */}
-      <div className="flex border-b border-slate-200 gap-8 px-2">
+      <div className="flex border-b border-slate-200 gap-4 px-2">
         <button
           onClick={() => setActiveTab("secondary")}
-          className={`pb-3 text-sm font-bold transition-all relative cursor-pointer ${
+          className={`pb-3 text-sm font-bold transition-all cursor-pointer border-b-2 px-2 flex items-center gap-2 ${
             activeTab === "secondary"
-              ? "text-blue-600 border-b-2 border-blue-600"
-              : "text-slate-400 hover:text-slate-600"
+              ? "border-blue-600 text-blue-600"
+              : "border-transparent text-slate-400 hover:text-slate-600"
           }`}
         >
           🎓 Secondary School Teachers
-          <span className="ml-2 bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-xs font-mono">
-            {teachers.filter(t => (t.school_tier || "secondary") === "secondary").length}
+          <span className={`text-xs px-2 py-0.5 rounded-full ${activeTab === "secondary" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-600"}`}>
+            {teachers.filter(t => t.school_tier === "secondary").length}
           </span>
         </button>
         <button
           onClick={() => setActiveTab("primary")}
-          className={`pb-3 text-sm font-bold transition-all relative cursor-pointer ${
+          className={`pb-3 text-sm font-bold transition-all cursor-pointer border-b-2 px-2 flex items-center gap-2 ${
             activeTab === "primary"
-              ? "text-blue-600 border-b-2 border-blue-600"
-              : "text-slate-400 hover:text-slate-600"
+              ? "border-blue-600 text-blue-600"
+              : "border-transparent text-slate-400 hover:text-slate-600"
           }`}
         >
           🎒 Primary School Teachers
-          <span className="ml-2 bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-xs font-mono">
+          <span className={`text-xs px-2 py-0.5 rounded-full ${activeTab === "primary" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-600"}`}>
             {teachers.filter(t => t.school_tier === "primary").length}
           </span>
         </button>
@@ -293,7 +295,7 @@ export default function ManageTeachersPage() {
           </div>
         ) : filteredTeachers.length === 0 ? (
           <div className="p-12 text-center text-slate-500 font-medium text-xs sm:text-sm">
-            No instructors found under the {activeTab} track. Click 'Add New Teacher' to onboard staff.
+            No instructors found in the {activeTab} school roster. Click 'Add New Teacher' to add one.
           </div>
         ) : (
           <div className="overflow-x-auto w-full">
@@ -331,7 +333,7 @@ export default function ManageTeachersPage() {
                       </div>
                     </td>
                     <td className="px-4 sm:px-6 py-4">
-                      <div className="flex flex-wrap gap-1 max-w-sm">
+                      <div className="flex flex-wrap gap-1 max-w-xs">
                         {teacher.assigned_subjects?.length > 0 ? (
                           teacher.assigned_subjects.map((subjCode) => (
                             <span key={subjCode} className="bg-indigo-50 border border-indigo-100 text-indigo-700 text-[10px] font-semibold px-2 py-0.5 rounded">
@@ -446,7 +448,7 @@ export default function ManageTeachersPage() {
                 <select
                   value={formData.school_tier}
                   onChange={(e) => handleTierChange(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 p-2.5 text-sm text-slate-800 bg-white font-semibold text-blue-600"
+                  className="w-full rounded-xl border border-slate-200 p-2.5 text-sm text-slate-800 bg-white"
                 >
                   <option value="primary">🎒 Primary School Track</option>
                   <option value="secondary">🎓 Secondary School Track (JSS1 - SS3)</option>
@@ -478,7 +480,7 @@ export default function ManageTeachersPage() {
                 <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 tracking-wider">
                   Assign Course Subjects ({formData.school_tier.toUpperCase()})
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
                   {(formData.school_tier === "primary" ? primarySubjectsList : secondarySubjectsList).map((subj) => (
                     <label key={subj.code} className="flex items-center gap-2 bg-white p-2 border border-slate-200 rounded-lg text-xs font-bold cursor-pointer hover:bg-slate-50 select-none">
                       <input
