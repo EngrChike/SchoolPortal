@@ -6,7 +6,7 @@ import { supabase } from "../../lib/supabaseClient";
 export default function CourseRegistrationPanel({
   currentStudentEmail,
   studentSection,
-  availableCourses,
+  availableCourses = [],
   registeredCourseIds,
   performanceRecords,
   isJss2Unlocked,
@@ -16,12 +16,71 @@ export default function CourseRegistrationPanel({
   const [selectedSchoolLevelTier, setSelectedSchoolLevelTier] = useState("JSS1");
   const [selectedTermFolder, setSelectedTermFolder] = useState("1st Term");
 
-  // Manual Form Field States
-  const [formCourseName, setFormCourseName] = useState("");
-  const [formCourseCode, setFormCourseCode] = useState("");
-  const [formSubmitting, setFormSubmitting] = useState(false);
+  // Selection state for available courses to register
+  const [selectedCourseIdsToRegister, setSelectedCourseIdsToRegister] = useState([]);
+  const [submittingRegistration, setSubmittingRegistration] = useState(false);
 
-  // Delete Course Registration Entry Explicitly (Matching exact row term & tier to prevent cross-deletes)
+  // Edit State (modal or inline editing tracker for a registered record)
+  const [editingRecordId, setEditingRecordId] = useState(null);
+  const [editTermValue, setEditTermValue] = useState("1st Term");
+
+  // Filter available courses matching the currently selected school level tier
+  const filteredAvailableCourses = availableCourses.filter(
+    (course) =>
+      (course.school_level_tier || "JSS1").toUpperCase() === selectedSchoolLevelTier.toUpperCase()
+  );
+
+  // Filter records matching current selected tier and term folder for detailed inspection
+  const currentFilteredRecords = performanceRecords.filter(
+    (r) => (r.school_level_tier || "JSS1") === selectedSchoolLevelTier && r.school_term === selectedTermFolder
+  );
+
+  // Toggle checkbox selection for batch or single course registration
+  function handleCheckboxToggle(courseId) {
+    if (registeredCourseIds.includes(courseId)) return; // Already registered
+    setSelectedCourseIdsToRegister((prev) =>
+      prev.includes(courseId) ? prev.filter((id) => id !== courseId) : [...prev, courseId]
+    );
+  }
+
+  // Handle Multi-Select Registration Submission
+  async function handleBatchCourseRegistration(e) {
+    e.preventDefault();
+    if (!currentStudentEmail || selectedCourseIdsToRegister.length === 0) {
+      alert("Please select at least one course to register.");
+      return;
+    }
+
+    setSubmittingRegistration(true);
+
+    try {
+      const rowsToInsert = selectedCourseIdsToRegister.map((courseId) => ({
+        student_email: currentStudentEmail,
+        course_id: courseId,
+        school_term: selectedTermFolder,
+        school_level_tier: selectedSchoolLevelTier,
+      }));
+
+      const { error: regError } = await supabase
+        .from("course_registrations")
+        .insert(rowsToInsert);
+
+      if (regError) throw regError;
+
+      if (typeof refreshRegistrations === "function") {
+        await refreshRegistrations(currentStudentEmail);
+      }
+
+      setSelectedCourseIdsToRegister([]);
+      alert("✨ Selected courses successfully registered!");
+    } catch (err) {
+      alert("Registration Error: " + err.message);
+    } finally {
+      setSubmittingRegistration(false);
+    }
+  }
+
+  // Delete Course Registration Entry Explicitly
   async function handleDeleteCourseRegistration(courseId) {
     if (!confirm("Are you sure you want to delete this course registration entry?")) return;
     try {
@@ -63,18 +122,19 @@ export default function CourseRegistrationPanel({
     }
   }
 
-  // Edit / Update an existing registration record entry term
-  async function handleEditCourseRegistration(courseId, newTerm) {
+  // Save Edit / Update an existing registration record term
+  async function handleSaveEditRegistration(courseId) {
     try {
       const { error } = await supabase
         .from("course_registrations")
-        .update({ school_term: newTerm })
+        .update({ school_term: editTermValue })
         .eq("student_email", currentStudentEmail)
         .eq("course_id", courseId)
         .eq("school_level_tier", selectedSchoolLevelTier);
 
       if (error) throw error;
       alert("✏️ Course registration term successfully updated!");
+      setEditingRecordId(null);
       if (typeof refreshRegistrations === "function") {
         await refreshRegistrations(currentStudentEmail);
       }
@@ -83,89 +143,18 @@ export default function CourseRegistrationPanel({
     }
   }
 
-  // Handle Manual Form Sourced Registration Input
-  async function handleManualCourseSubmit(e) {
-    e.preventDefault();
-    if (!currentStudentEmail) return;
-    setFormSubmitting(true);
-
-    try {
-      let targetCourseId = null;
-      const { data: existingCourse } = await supabase
-        .from("courses")
-        .select("id")
-        .eq("code", formCourseCode.trim().toUpperCase())
-        .maybeSingle();
-
-      if (existingCourse) {
-        targetCourseId = existingCourse.id;
-      } else {
-        let sanitizedSection = studentSection.trim().toLowerCase();
-        if (sanitizedSection === "unassigned" || !sanitizedSection) {
-          sanitizedSection = "primary";
-        }
-
-        const { data: newCourse, error: insertCourseErr } = await supabase
-          .from("courses")
-          .insert({
-            name: formCourseName.trim(),
-            code: formCourseCode.trim().toUpperCase(),
-            section: sanitizedSection,
-          })
-          .select("id")
-          .single();
-
-        if (insertCourseErr) throw insertCourseErr;
-        targetCourseId = newCourse.id;
-      }
-
-      if (registeredCourseIds.includes(targetCourseId)) {
-        alert("Notice: This course unit is already locked onto your profile registry.");
-        setFormSubmitting(false);
-        return;
-      }
-
-      const { error: regError } = await supabase
-        .from("course_registrations")
-        .insert({
-          student_email: currentStudentEmail,
-          course_id: targetCourseId,
-          school_term: selectedTermFolder,
-          school_level_tier: selectedSchoolLevelTier,
-        });
-      if (regError) throw regError;
-
-      if (typeof refreshRegistrations === "function") {
-        await refreshRegistrations(currentStudentEmail);
-      }
-
-      setFormCourseName("");
-      setFormCourseCode("");
-      alert("✨ Custom Course Entry saved and committed successfully!");
-    } catch (err) {
-      alert("Form Registration Error: " + err.message);
-    } finally {
-      setFormSubmitting(false);
-    }
-  }
-
-  // Filter records matching current selected tier and term folder for detailed inspection
-  const currentFilteredRecords = performanceRecords.filter(
-    (r) => (r.school_level_tier || "JSS1") === selectedSchoolLevelTier && r.school_term === selectedTermFolder
-  );
-
   return (
     <div className="space-y-6 sm:space-y-8 no-print-wrapper">
       {/* School Level Tier Selector Navigation */}
       <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
         <div>
           <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Select School Level Tier</h3>
-          <p className="text-xs text-slate-400">Choose a milestone folder to filter and inspect registered courses.</p>
+          <p className="text-xs text-slate-400">Choose a milestone folder to filter courses and registrations.</p>
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
           <button
             type="button"
-            onClick={() => setSelectedSchoolLevelTier("JSS1")}
+            onClick={() => { setSelectedSchoolLevelTier("JSS1"); setSelectedCourseIdsToRegister([]); }}
             className={`flex-1 sm:flex-none py-2.5 px-4 rounded-xl text-xs font-bold cursor-pointer transition-all ${
               selectedSchoolLevelTier === "JSS1" ? "bg-indigo-600 text-white shadow-md" : "bg-slate-100 text-slate-600"
             }`}
@@ -174,11 +163,14 @@ export default function CourseRegistrationPanel({
           </button>
           <button
             type="button"
-            onClick={() =>
-              isJss2Unlocked
-                ? setSelectedSchoolLevelTier("JSS2")
-                : alert("🔒 JSS2 is locked! You must obtain an overall average score >= 50% across JSS1 terms.")
-            }
+            onClick={() => {
+              if (isJss2Unlocked) {
+                setSelectedSchoolLevelTier("JSS2");
+                setSelectedCourseIdsToRegister([]);
+              } else {
+                alert("🔒 JSS2 is locked! You must obtain an overall average score >= 50% across JSS1 terms.");
+              }
+            }}
             className={`flex-1 sm:flex-none py-2.5 px-4 rounded-xl text-xs font-bold cursor-pointer transition-all ${
               selectedSchoolLevelTier === "JSS2"
                 ? "bg-indigo-600 text-white shadow-md"
@@ -191,7 +183,10 @@ export default function CourseRegistrationPanel({
           </button>
           <button
             type="button"
-            onClick={() => setSelectedSchoolLevelTier(isJss3ToSs1Transitioned ? "SS1" : "JSS3")}
+            onClick={() => {
+              setSelectedSchoolLevelTier(isJss3ToSs1Transitioned ? "SS1" : "JSS3");
+              setSelectedCourseIdsToRegister([]);
+            }}
             className={`flex-1 sm:flex-none py-2.5 px-4 rounded-xl text-xs font-bold cursor-pointer transition-all ${
               selectedSchoolLevelTier === "JSS3" || selectedSchoolLevelTier === "SS1"
                 ? "bg-indigo-600 text-white shadow-md"
@@ -210,7 +205,7 @@ export default function CourseRegistrationPanel({
             <h3 className="text-sm sm:text-base font-black text-slate-800 tracking-tight">
               Term Folders for [{selectedSchoolLevelTier}]
             </h3>
-            <p className="text-xs text-slate-400">Select a term folder to view or register courses for that specific block.</p>
+            <p className="text-xs text-slate-400">Select a term folder to view or select courses for that specific block.</p>
           </div>
           <div className="flex gap-2">
             {["1st Term", "2nd Term", "3rd Term"].map((term) => (
@@ -247,53 +242,82 @@ export default function CourseRegistrationPanel({
           </button>
         </div>
 
-        {/* Manual Course Entry Form */}
+        {/* Efficient Course Selection Panel (Checklist based on Tier Offerings & Assigned Teacher tracking) */}
         <div className="pt-2">
-          <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider mb-3">
-            Add Course for {selectedSchoolLevelTier} [{selectedTermFolder}]
+          <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider mb-2">
+            Available Courses for {selectedSchoolLevelTier} [{selectedTermFolder}]
           </h4>
-          <form onSubmit={handleManualCourseSubmit} className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
-            <div>
-              <label className="block text-xs font-bold uppercase text-slate-400 tracking-wider mb-1.5">Course Name</label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. Mathematics"
-                value={formCourseName}
-                onChange={(e) => setFormCourseName(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 p-3 text-sm text-slate-800 outline-none focus:border-indigo-600 bg-slate-50/50"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold uppercase text-slate-400 tracking-wider mb-1.5">Course Code</label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. MAT 101"
-                value={formCourseCode}
-                onChange={(e) => setFormCourseCode(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 p-3 text-sm text-slate-800 outline-none focus:border-indigo-600 bg-slate-50/50 font-mono uppercase"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold uppercase text-slate-400 tracking-wider mb-1.5">Active Term Folder</label>
-              <input
-                type="text"
-                disabled
-                value={selectedTermFolder}
-                className="w-full rounded-xl border border-slate-200 p-3 text-sm text-indigo-700 bg-indigo-50 font-bold outline-none cursor-not-allowed"
-              />
-            </div>
-            <div className="sm:col-span-3 pt-2">
+          <p className="text-xs text-slate-400 mb-4">
+            Check the courses offered for your level below, verify their assigned teachers, and click register.
+          </p>
+
+          {filteredAvailableCourses.length === 0 ? (
+            <p className="text-sm font-medium text-slate-400 text-center py-6 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+              No preset courses found configured for {selectedSchoolLevelTier}.
+            </p>
+          ) : (
+            <form onSubmit={handleBatchCourseRegistration} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-80 overflow-y-auto p-1">
+                {filteredAvailableCourses.map((course) => {
+                  const isAlreadyRegistered = registeredCourseIds.includes(course.id);
+                  const isChecked = selectedCourseIdsToRegister.includes(course.id);
+
+                  return (
+                    <div
+                      key={course.id}
+                      onClick={() => !isAlreadyRegistered && handleCheckboxToggle(course.id)}
+                      className={`p-3.5 rounded-2xl border transition-all flex items-start gap-3 ${
+                        isAlreadyRegistered
+                          ? "bg-slate-100/60 border-slate-200 opacity-70 cursor-not-allowed"
+                          : isChecked
+                          ? "bg-indigo-50/70 border-indigo-300 cursor-pointer shadow-sm"
+                          : "bg-slate-50/50 border-slate-200 hover:border-slate-300 cursor-pointer"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        disabled={isAlreadyRegistered}
+                        checked={isChecked || isAlreadyRegistered}
+                        onChange={() => {}} // handled by outer div click for convenience
+                        className="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] font-mono font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md uppercase">
+                            {course.code}
+                          </span>
+                          {isAlreadyRegistered && (
+                            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">
+                              Registered ✓
+                            </span>
+                          )}
+                        </div>
+                        <h5 className="text-xs font-black text-slate-800 mt-1 truncate">{course.name}</h5>
+                        <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1 font-medium">
+                          <span>Teacher Assigned:</span>
+                          <span className="font-bold text-slate-700">
+                            {course.teacher_name || course.teacher?.full_name || course.assigned_teacher || "Not Assigned"}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
               <button
                 type="submit"
-                disabled={formSubmitting}
-                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm py-3 rounded-xl transition-all shadow-md cursor-pointer"
+                disabled={submittingRegistration || selectedCourseIdsToRegister.length === 0}
+                className={`w-full font-bold text-sm py-3 rounded-xl transition-all shadow-md ${
+                  submittingRegistration || selectedCourseIdsToRegister.length === 0
+                    ? "bg-slate-300 text-slate-500 cursor-not-allowed"
+                    : "bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer"
+                }`}
               >
-                {formSubmitting ? "Linking Academic Rows..." : `Submit & Register Course Entry for ${selectedSchoolLevelTier}`}
+                {submittingRegistration ? "Saving Registrations..." : `Register Selected Courses (${selectedCourseIdsToRegister.length})`}
               </button>
-            </div>
-          </form>
+            </form>
+          )}
         </div>
       </div>
 
@@ -312,39 +336,83 @@ export default function CourseRegistrationPanel({
           </p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {currentFilteredRecords.map((record, index) => (
-              <div key={index} className="p-4 rounded-xl border border-slate-200/80 bg-slate-50/40 flex flex-col gap-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <span className="text-[10px] font-mono font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md uppercase inline-block">
-                      {record.courses?.code}
-                    </span>
-                    <h4 className="text-sm font-black text-slate-800 mt-1 truncate">{record.courses?.name}</h4>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteCourseRegistration(record.course_id)}
-                    className="text-xs font-bold text-rose-600 hover:text-rose-700 py-1.5 px-3 bg-rose-50 rounded-xl cursor-pointer flex-shrink-0"
-                  >
-                    Delete
-                  </button>
-                </div>
+            {currentFilteredRecords.map((record, index) => {
+              const isEditing = editingRecordId === record.course_id;
+              const assignedTeacherName =
+                record.courses?.teacher_name ||
+                record.courses?.teacher?.full_name ||
+                record.courses?.assigned_teacher ||
+                record.teacher_name ||
+                "Not Assigned";
 
-                {/* Edit Term Reassignment */}
-                <div className="flex items-center gap-2 pt-2 border-t border-slate-200/50">
-                  <span className="text-[11px] text-slate-400 font-bold">Move Term:</span>
-                  <select
-                    value={record.school_term}
-                    onChange={(e) => handleEditCourseRegistration(record.course_id, e.target.value)}
-                    className="text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-lg p-1.5 outline-none focus:border-indigo-600 flex-1"
-                  >
-                    <option value="1st Term">1st Term</option>
-                    <option value="2nd Term">2nd Term</option>
-                    <option value="3rd Term">3rd Term</option>
-                  </select>
+              return (
+                <div key={index} className="p-4 rounded-xl border border-slate-200/80 bg-slate-50/40 flex flex-col gap-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <span className="text-[10px] font-mono font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md uppercase inline-block">
+                        {record.courses?.code}
+                      </span>
+                      <h4 className="text-sm font-black text-slate-800 mt-1 truncate">{record.courses?.name}</h4>
+                      <p className="text-[11px] text-slate-500 mt-0.5 font-medium">
+                        Teacher: <span className="font-bold text-slate-700">{assignedTeacherName}</span>
+                      </p>
+                    </div>
+                    <div className="flex flex-col gap-1.5 items-end flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteCourseRegistration(record.course_id)}
+                        className="text-xs font-bold text-rose-600 hover:text-rose-700 py-1 px-2.5 bg-rose-50 rounded-lg cursor-pointer"
+                      >
+                        Delete
+                      </button>
+                      {!isEditing ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingRecordId(record.course_id);
+                            setEditTermValue(record.school_term);
+                          }}
+                          className="text-xs font-bold text-indigo-600 hover:text-indigo-700 py-1 px-2.5 bg-indigo-50 rounded-lg cursor-pointer"
+                        >
+                          Edit
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setEditingRecordId(null)}
+                          className="text-xs font-bold text-slate-500 hover:text-slate-700 py-1 px-2 bg-slate-200 rounded-lg cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Inline Edit Form Options */}
+                  {isEditing && (
+                    <div className="flex items-center gap-2 pt-2 border-t border-slate-200/50">
+                      <span className="text-[11px] text-slate-400 font-bold">New Term:</span>
+                      <select
+                        value={editTermValue}
+                        onChange={(e) => setEditTermValue(e.target.value)}
+                        className="text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-lg p-1.5 outline-none focus:border-indigo-600 flex-1"
+                      >
+                        <option value="1st Term">1st Term</option>
+                        <option value="2nd Term">2nd Term</option>
+                        <option value="3rd Term">3rd Term</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => handleSaveEditRegistration(record.course_id)}
+                        className="text-xs font-bold bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 cursor-pointer"
+                      >
+                        Save
+                      </button>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
