@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "../../lib/supabaseClient";
+import { supabase } from "../../../lib/supabaseClient";
 import ResultViewer from "../ResultViewer"; 
 import CourseRegistrationPanel from "../CourseRegistrationPanel"; // Imported external course registration component
 
