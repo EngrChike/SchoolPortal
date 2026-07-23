@@ -557,17 +557,13 @@ export default function StudentDashboard() {
             <CourseRegistrationPanel
               currentStudentEmail={currentStudentEmail}
               studentSection={studentSection}
-              selectedSchoolLevelTier={selectedSchoolLevelTier}
-              setSelectedSchoolLevelTier={setSelectedSchoolLevelTier}
-              selectedTermFolder={selectedTermFolder}
-              setSelectedTermFolder={setSelectedTermFolder}
-              isJss2Unlocked={isJss2Unlocked}
-              isJss3ToSs1Transitioned={isJss3ToSs1Transitioned}
               availableCourses={availableCourses}
               setAvailableCourses={setAvailableCourses}
               registeredCourseIds={registeredCourseIds}
               performanceRecords={performanceRecords}
-              fetchRegistrationsAndGrades={fetchRegistrationsAndGrades}
+              isJss2Unlocked={isJss2Unlocked}
+              isJss3ToSs1Transitioned={isJss3ToSs1Transitioned}
+              refreshRegistrations={fetchRegistrationsAndGrades}
             />
           )}
 
