@@ -21,7 +21,7 @@ export default function CourseRegistrationPanel({
   const [formCourseCode, setFormCourseCode] = useState("");
   const [formSubmitting, setFormSubmitting] = useState(false);
 
-  // Delete Course Registration Entry Explicitly
+  // Delete Course Registration Entry Explicitly (Matching exact row term & tier to prevent cross-deletes)
   async function handleDeleteCourseRegistration(courseId) {
     if (!confirm("Are you sure you want to delete this course registration entry?")) return;
     try {
@@ -29,10 +29,14 @@ export default function CourseRegistrationPanel({
         .from("course_registrations")
         .delete()
         .eq("student_email", currentStudentEmail)
-        .eq("course_id", courseId);
+        .eq("course_id", courseId)
+        .eq("school_level_tier", selectedSchoolLevelTier)
+        .eq("school_term", selectedTermFolder);
 
       if (error) throw error;
-      await refreshRegistrations(currentStudentEmail);
+      if (typeof refreshRegistrations === "function") {
+        await refreshRegistrations(currentStudentEmail);
+      }
     } catch (err) {
       alert("Delete Error: " + err.message);
     }
@@ -51,7 +55,9 @@ export default function CourseRegistrationPanel({
 
       if (error) throw error;
       alert(`✅ Courses successfully cleared for ${selectedSchoolLevelTier} (${termName})!`);
-      await refreshRegistrations(currentStudentEmail);
+      if (typeof refreshRegistrations === "function") {
+        await refreshRegistrations(currentStudentEmail);
+      }
     } catch (err) {
       alert("Clear Registration Error: " + err.message);
     }
@@ -64,11 +70,14 @@ export default function CourseRegistrationPanel({
         .from("course_registrations")
         .update({ school_term: newTerm })
         .eq("student_email", currentStudentEmail)
-        .eq("course_id", courseId);
+        .eq("course_id", courseId)
+        .eq("school_level_tier", selectedSchoolLevelTier);
 
       if (error) throw error;
       alert("✏️ Course registration term successfully updated!");
-      await refreshRegistrations(currentStudentEmail);
+      if (typeof refreshRegistrations === "function") {
+        await refreshRegistrations(currentStudentEmail);
+      }
     } catch (err) {
       alert("Update Error: " + err.message);
     }
@@ -126,7 +135,9 @@ export default function CourseRegistrationPanel({
         });
       if (regError) throw regError;
 
-      await refreshRegistrations(currentStudentEmail);
+      if (typeof refreshRegistrations === "function") {
+        await refreshRegistrations(currentStudentEmail);
+      }
 
       setFormCourseName("");
       setFormCourseCode("");
@@ -138,7 +149,7 @@ export default function CourseRegistrationPanel({
     }
   }
 
-  // Filter records matching current selected tier and term folder
+  // Filter records matching current selected tier and term folder for detailed inspection
   const currentFilteredRecords = performanceRecords.filter(
     (r) => (r.school_level_tier || "JSS1") === selectedSchoolLevelTier && r.school_term === selectedTermFolder
   );
