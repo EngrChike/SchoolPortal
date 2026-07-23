@@ -421,6 +421,9 @@ export default function StudentDashboard() {
       }, 0) / totalCoursesCount).toFixed(2)
     : "0.00";
 
+  // Automatically extract the active academic term from registrations or default to First Term
+  const activeTermName = performanceRecords.find(r => r.school_term)?.school_term || "First Term";
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen text-sm font-bold text-slate-400 animate-pulse bg-slate-50">
@@ -736,6 +739,7 @@ export default function StudentDashboard() {
                 fullName={fullName}
                 studentSection={studentSection}
                 classLevel={classLevel}
+                termName={activeTermName}
                 overallAverageScore={overallAverageScore}
                 performanceRecords={performanceRecords}
                 schoolStamp={schoolStamp}

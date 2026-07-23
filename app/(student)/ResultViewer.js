@@ -8,6 +8,7 @@ export default function ResultViewer({
   fullName,
   studentSection,
   classLevel,
+  termName,
   overallAverageScore,
   performanceRecords,
   schoolStamp,
@@ -148,11 +149,11 @@ export default function ResultViewer({
               </div>
               <div>
                 <span className="block text-[8px] uppercase font-black text-slate-400">Section Node</span>
-                <p className="font-bold text-slate-800 truncate mt-0.5">{studentSection || "N/A"}</p>
+                <p className="font-bold text-slate-800 truncate mt-0.5">{studentSection || "Unassigned"}</p>
               </div>
               <div>
-                <span className="block text-[8px] uppercase font-black text-slate-400">Class Level</span>
-                <p className="font-bold text-slate-800 truncate mt-0.5">{classLevel || "N/A"}</p>
+                <span className="block text-[8px] uppercase font-black text-slate-400">Class Level & Term</span>
+                <p className="font-bold text-slate-800 truncate mt-0.5">{classLevel || "N/A"} ({termName})</p>
               </div>
               <div>
                 <span className="block text-[8px] uppercase font-black text-slate-400">Performance Status</span>
@@ -203,7 +204,7 @@ export default function ResultViewer({
             <div className="border border-slate-200 bg-slate-50/60 rounded-2xl p-3 text-slate-800 text-center">
               <div className="text-[10px] font-black text-indigo-900 uppercase mb-1">Official Attestation Profile</div>
               <p className="text-[10px] text-slate-600 leading-relaxed max-w-xl mx-auto">
-                This is to certify that <span className="text-slate-900 font-black">{fullName || "Student"}</span> bearing index code <span className="text-slate-900 font-black">{regNumber || "N/A"}</span> completed terminal assessments with a cumulative score average of <span className="font-mono font-bold text-indigo-700">{overallAverageScore}%</span>, resulting in an official standing status of <span className={`font-black uppercase ${isFailed ? 'text-rose-600' : 'text-emerald-600'}`}>{isFailed ? 'Fail' : 'Pass'}</span>.
+                This is to certify that <span className="text-slate-900 font-black">{fullName || "Student"}</span> bearing index code <span className="text-slate-900 font-black">{regNumber || "N/A"}</span> completed terminal assessments for <span className="text-slate-900 font-black">{termName}</span> under the <span className="text-slate-900 font-black">{studentSection || "General"}</span> section, with a cumulative score average of <span className="font-mono font-bold text-indigo-700">{overallAverageScore}%</span>, resulting in an official standing status of <span className={`font-black uppercase ${isFailed ? 'text-rose-600' : 'text-emerald-600'}`}>{isFailed ? 'Fail' : 'Pass'}</span>.
               </p>
             </div>
             
