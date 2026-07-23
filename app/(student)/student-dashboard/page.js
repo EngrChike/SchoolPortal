@@ -38,8 +38,8 @@ export default function StudentDashboard() {
   const [registeredCourseIds, setRegisteredCourseIds] = useState([]);
   const [performanceRecords, setPerformanceRecords] = useState([]);
   
-  // New States for Yearly, Term Folders, and Progression Logics
-  const [selectedYearlySection, setSelectedYearlySection] = useState("JSS1");
+  // Updated States for School Level Tier, Term Folders, and Progression Logics
+  const [selectedSchoolLevelTier, setSelectedSchoolLevelTier] = useState("JSS1");
   const [selectedTermFolder, setSelectedTermFolder] = useState("1st Term");
   const [archivedTermRecords, setArchivedTermRecords] = useState({ "1st Term": [], "2nd Term": [], "3rd Term": [] });
   const [isJss2Unlocked, setIsJss2Unlocked] = useState(false);
@@ -73,7 +73,7 @@ export default function StudentDashboard() {
         mid_semester,
         final_exam,
         school_term,
-        yearly_section,
+        school_level_tier,
         courses:course_id (
           id,
           name,
@@ -102,7 +102,7 @@ export default function StudentDashboard() {
 
   // Logic to evaluate JSS1 -> JSS2 (>= 50% average across terms) and JSS3 -> SS1 Junior WAEC automatic transition
   function evaluateJssProgression(registrations) {
-    const jss1TermRecords = registrations.filter(r => (r.yearly_section || "JSS1") === "JSS1");
+    const jss1TermRecords = registrations.filter(r => (r.school_level_tier || "JSS1") === "JSS1");
     
     // Group totals by term
     const termAverages = ["1st Term", "2nd Term", "3rd Term"].map(term => {
@@ -122,7 +122,7 @@ export default function StudentDashboard() {
     }
 
     // Check Junior WAEC / JSS3 transition to SS1 First Term automatically
-    const jss3Records = registrations.filter(r => (r.yearly_section || "").toUpperCase() === "JSS3");
+    const jss3Records = registrations.filter(r => (r.school_level_tier || "").toUpperCase() === "JSS3");
     if (jss3Records.length > 0) {
       setIsJss3ToSs1Transitioned(true);
       setClassLevel("SS1");
@@ -370,8 +370,8 @@ export default function StudentDashboard() {
           .insert({
             student_email: currentStudentEmail,
             course_id: courseId,
-            yearly_section: selectedYearlySection,
-            school_term: formSchoolTerm || "First Term"
+            school_level_tier: selectedSchoolLevelTier,
+            school_term: formSchoolTerm || selectedTermFolder
           });
         if (error) throw error;
       }
@@ -382,26 +382,43 @@ export default function StudentDashboard() {
     }
   }
 
-  // Clear / Archive Registered Courses for current term and section
-  async function handleClearRegisteredCourses(termName) {
-    if (!confirm(`Are you sure you want to clear and archive registrations for ${selectedYearlySection} - ${termName}?`)) return;
+  // Delete Course Registration Entry Explicitly
+  async function handleDeleteCourseRegistration(courseId) {
+    if (!confirm("Are you sure you want to delete this course registration entry?")) return;
     try {
       const { error } = await supabase
         .from("course_registrations")
         .delete()
         .eq("student_email", currentStudentEmail)
-        .eq("yearly_section", selectedYearlySection)
+        .eq("course_id", courseId);
+
+      if (error) throw error;
+      await fetchRegistrationsAndGrades(currentStudentEmail);
+    } catch (err) {
+      alert("Delete Error: " + err.message);
+    }
+  }
+
+  // Clear / Archive Registered Courses for current term and school level tier
+  async function handleClearRegisteredCourses(termName) {
+    if (!confirm(`Are you sure you want to clear and archive registrations for ${selectedSchoolLevelTier} - ${termName}?`)) return;
+    try {
+      const { error } = await supabase
+        .from("course_registrations")
+        .delete()
+        .eq("student_email", currentStudentEmail)
+        .eq("school_level_tier", selectedSchoolLevelTier)
         .eq("school_term", termName);
 
       if (error) throw error;
-      alert(`✅ Courses successfully cleared and stored for ${selectedYearlySection} (${termName})!`);
+      alert(`✅ Courses successfully cleared and stored for ${selectedSchoolLevelTier} (${termName})!`);
       await fetchRegistrationsAndGrades(currentStudentEmail);
     } catch (err) {
       alert("Clear Registration Error: " + err.message);
     }
   }
 
-  // Edit / Update an existing registration record entry
+  // Edit / Update an existing registration record entry term
   async function handleEditCourseRegistration(courseId, newTerm) {
     try {
       const { error } = await supabase
@@ -472,8 +489,8 @@ export default function StudentDashboard() {
         .insert({
           student_email: currentStudentEmail,
           course_id: targetCourseId,
-          school_term: formSchoolTerm.trim(),
-          yearly_section: selectedYearlySection
+          school_term: selectedTermFolder.trim(),
+          school_level_tier: selectedSchoolLevelTier
         });
       if (regError) throw regError;
 
@@ -481,7 +498,6 @@ export default function StudentDashboard() {
       
       setFormCourseName("");
       setFormCourseCode("");
-      setFormSchoolTerm("");
       alert("✨ Custom Course Entry saved and committed successfully!");
     } catch (err) {
       alert("Form Registration Error: " + err.message);
@@ -633,8 +649,11 @@ export default function StudentDashboard() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
                     <div>
-                      <label className="block text-xs font-bold uppercase text-slate-400 tracking-wider mb-1.5">Academic Section Allocation</label>
-                      <input type="text" disabled value={studentSection} className="w-full rounded-xl border border-slate-200 p-3 text-sm text-indigo-700 bg-indigo-50 font-bold outline-none cursor-not-allowed tracking-wide" />
+                      <label className="block text-xs font-bold uppercase text-slate-400 tracking-wider mb-1.5">School Level Tier</label>
+                      <select value={studentSection} onChange={(e) => setStudentSection(e.target.value)} className="w-full rounded-xl border border-slate-200 p-3 text-sm text-indigo-700 bg-indigo-50 font-bold outline-none tracking-wide">
+                        <option value="Primary">Primary</option>
+                        <option value="Secondary">Secondary</option>
+                      </select>
                     </div>
                     <div>
                       <label className="block text-xs font-bold uppercase text-slate-400 tracking-wider mb-1.5">Assigned Class Level</label>
@@ -691,24 +710,24 @@ export default function StudentDashboard() {
             </form>
           )}
 
-          {/* PANEL 2: COURSE REGISTRATION HUB WITH YEARLY SECTIONS & TERM FOLDERS */}
+          {/* PANEL 2: COURSE REGISTRATION HUB WITH SCHOOL LEVEL TIERS & TERM FOLDERS */}
           {activePanel === "course_reg" && (
             <div className="space-y-6 sm:space-y-8 no-print-wrapper">
               
-              {/* Yearly Section Selector Navigation */}
+              {/* School Level Tier Selector Navigation */}
               <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div>
-                  <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Select Yearly Class Section</h3>
-                  <p className="text-xs text-slate-400">Choose the yearly milestone folder to view or register courses.</p>
+                  <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Select School Level Tier</h3>
+                  <p className="text-xs text-slate-400">Choose the milestone folder to view or register courses.</p>
                 </div>
                 <div className="flex gap-2 w-full sm:w-auto">
-                  <button type="button" onClick={() => setSelectedYearlySection("JSS1")} className={`flex-1 sm:flex-none py-2.5 px-4 rounded-xl text-xs font-bold cursor-pointer transition-all ${selectedYearlySection === "JSS1" ? "bg-indigo-600 text-white shadow-md" : "bg-slate-100 text-slate-600"}`}>
-                    JSS1 (Active)
+                  <button type="button" onClick={() => setSelectedSchoolLevelTier("JSS1")} className={`flex-1 sm:flex-none py-2.5 px-4 rounded-xl text-xs font-bold cursor-pointer transition-all ${selectedSchoolLevelTier === "JSS1" ? "bg-indigo-600 text-white shadow-md" : "bg-slate-100 text-slate-600"}`}>
+                    JSS1
                   </button>
-                  <button type="button" onClick={() => isJss2Unlocked ? setSelectedYearlySection("JSS2") : alert("🔒 JSS2 is locked! You must obtain an overall average score >= 50% across JSS1 1st, 2nd, and 3rd terms.")} className={`flex-1 sm:flex-none py-2.5 px-4 rounded-xl text-xs font-bold cursor-pointer transition-all ${selectedYearlySection === "JSS2" ? "bg-indigo-600 text-white shadow-md" : isJss2Unlocked ? "bg-slate-100 text-slate-600" : "bg-slate-100 text-slate-400 opacity-60"}`}>
+                  <button type="button" onClick={() => isJss2Unlocked ? setSelectedSchoolLevelTier("JSS2") : alert("🔒 JSS2 is locked! You must obtain an overall average score >= 50% across JSS1 1st, 2nd, and 3rd terms.")} className={`flex-1 sm:flex-none py-2.5 px-4 rounded-xl text-xs font-bold cursor-pointer transition-all ${selectedSchoolLevelTier === "JSS2" ? "bg-indigo-600 text-white shadow-md" : isJss2Unlocked ? "bg-slate-100 text-slate-600" : "bg-slate-100 text-slate-400 opacity-60"}`}>
                     {isJss2Unlocked ? "JSS2" : "🔒 JSS2 (Locked)"}
                   </button>
-                  <button type="button" onClick={() => isJss3ToSs1Transitioned ? setSelectedYearlySection("SS1") : setSelectedYearlySection("JSS3")} className="flex-1 sm:flex-none py-2.5 px-4 rounded-xl text-xs font-bold cursor-pointer bg-slate-100 text-slate-600 transition-all">
+                  <button type="button" onClick={() => isJss3ToSs1Transitioned ? setSelectedSchoolLevelTier("SS1") : setSelectedSchoolLevelTier("JSS3")} className="flex-1 sm:flex-none py-2.5 px-4 rounded-xl text-xs font-bold cursor-pointer bg-slate-100 text-slate-600 transition-all">
                     {isJss3ToSs1Transitioned ? "SS1 (Junior WAEC Graduated)" : "JSS3"}
                   </button>
                 </div>
@@ -718,7 +737,7 @@ export default function StudentDashboard() {
               <div className="bg-white p-5 sm:p-6 md:p-8 rounded-3xl sm:rounded-[2rem] border border-slate-100 shadow-sm space-y-6">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-100">
                   <div>
-                    <h3 className="text-sm sm:text-base font-black text-slate-800 tracking-tight">Term Storage Folders ({selectedYearlySection})</h3>
+                    <h3 className="text-sm sm:text-base font-black text-slate-800 tracking-tight">Term Storage Folders ({selectedSchoolLevelTier})</h3>
                     <p className="text-xs text-slate-400">Toggle term folders, register entries, or clear completed terms.</p>
                   </div>
                   <div className="flex gap-2">
@@ -734,16 +753,16 @@ export default function StudentDashboard() {
                 <div className="flex items-center justify-between p-4 bg-amber-50/60 border border-amber-200/60 rounded-2xl">
                   <div>
                     <h4 className="text-xs font-bold text-amber-900 uppercase">Complete Term Archive Manager</h4>
-                    <p className="text-[11px] text-amber-700 mt-0.5">Clicking this clears active courses for <span className="font-bold underline">{selectedYearlySection} - {selectedTermFolder}</span> and moves them into storage.</p>
+                    <p className="text-[11px] text-amber-700 mt-0.5">Clicking this clears active courses for <span className="font-bold underline">{selectedSchoolLevelTier} - {selectedTermFolder}</span> and moves them into storage.</p>
                   </div>
                   <button type="button" onClick={() => handleClearRegisteredCourses(selectedTermFolder)} className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs py-2.5 px-4 rounded-xl transition-all cursor-pointer shadow-sm flex-shrink-0">
-                    Clear & Store {selectedYearlySection} ({selectedTermFolder})
+                    Clear & Store {selectedSchoolLevelTier} ({selectedTermFolder})
                   </button>
                 </div>
 
-                {/* Manual Course Entry Form for Selected Yearly & Term Folder */}
+                {/* Manual Course Entry Form for Selected Tier & Term Folder */}
                 <div className="pt-2">
-                  <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider mb-3">Add Course for {selectedYearlySection} [{selectedTermFolder}]</h4>
+                  <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider mb-3">Add Course for {selectedSchoolLevelTier} [{selectedTermFolder}]</h4>
                   <form onSubmit={handleManualCourseSubmit} className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
                     <div>
                       <label className="block text-xs font-bold uppercase text-slate-400 tracking-wider mb-1.5">Course Name</label>
@@ -759,7 +778,7 @@ export default function StudentDashboard() {
                     </div>
                     <div className="sm:col-span-3 pt-2">
                       <button type="submit" disabled={formSubmitting} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm py-3 rounded-xl transition-all shadow-md cursor-pointer">
-                        {formSubmitting ? "Linking Academic Rows..." : `Submit & Register Course Entry for ${selectedYearlySection}`}
+                        {formSubmitting ? "Linking Academic Rows..." : `Submit & Register Course Entry for ${selectedSchoolLevelTier}`}
                       </button>
                     </div>
                   </form>
@@ -769,15 +788,15 @@ export default function StudentDashboard() {
               {/* Registered Records Listing with Edit and Delete Capabilities */}
               <div className="bg-white p-5 sm:p-6 md:p-8 rounded-3xl sm:rounded-[2rem] border border-slate-100 shadow-sm">
                 <div className="mb-4">
-                  <h3 className="text-sm font-black text-slate-700 uppercase tracking-wider">Registered Records for {selectedYearlySection} ({selectedTermFolder})</h3>
+                  <h3 className="text-sm font-black text-slate-700 uppercase tracking-wider">Registered Records for {selectedSchoolLevelTier} ({selectedTermFolder})</h3>
                   <p className="text-xs text-slate-400 mt-0.5">Edit registration terms or delete incorrect course entries below.</p>
                 </div>
-                {performanceRecords.filter(r => (r.yearly_section || "JSS1") === selectedYearlySection && r.school_term === selectedTermFolder).length === 0 ? (
-                  <p className="text-sm font-medium text-slate-400 text-center py-6 bg-slate-50 rounded-2xl border border-dashed border-slate-200">No registered courses found under {selectedYearlySection} - {selectedTermFolder}.</p>
+                {performanceRecords.filter(r => (r.school_level_tier || "JSS1") === selectedSchoolLevelTier && r.school_term === selectedTermFolder).length === 0 ? (
+                  <p className="text-sm font-medium text-slate-400 text-center py-6 bg-slate-50 rounded-2xl border border-dashed border-slate-200">No registered courses found under {selectedSchoolLevelTier} - {selectedTermFolder}.</p>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {performanceRecords
-                      .filter(r => (r.yearly_section || "JSS1") === selectedYearlySection && r.school_term === selectedTermFolder)
+                      .filter(r => (r.school_level_tier || "JSS1") === selectedSchoolLevelTier && r.school_term === selectedTermFolder)
                       .map((record, index) => (
                         <div key={index} className="p-4 rounded-xl border border-slate-200/80 bg-slate-50/40 flex flex-col gap-3">
                           <div className="flex items-center justify-between gap-3">
@@ -785,7 +804,7 @@ export default function StudentDashboard() {
                               <span className="text-[10px] font-mono font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md uppercase inline-block">{record.courses?.code}</span>
                               <h4 className="text-sm font-black text-slate-800 mt-1 truncate">{record.courses?.name}</h4>
                             </div>
-                            <button type="button" onClick={() => toggleCourseRegistration(record.course_id)} className="text-xs font-bold text-rose-600 hover:text-rose-700 py-1.5 px-3 bg-rose-50 rounded-xl cursor-pointer flex-shrink-0">Delete</button>
+                            <button type="button" onClick={() => handleDeleteCourseRegistration(record.course_id)} className="text-xs font-bold text-rose-600 hover:text-rose-700 py-1.5 px-3 bg-rose-50 rounded-xl cursor-pointer flex-shrink-0">Delete</button>
                           </div>
                           
                           {/* Edit Registration Term Option */}
