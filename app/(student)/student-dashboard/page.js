@@ -4,7 +4,9 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabaseClient";
 import ResultViewer from "../ResultViewer"; 
-import CourseRegistrationPanel from "../CourseRegistrationPanel"; // Imported external course registration component
+import CourseRegistrationPanel from "../CourseRegistrationPanel"; 
+import StudentBioPanel from "../StudentBioPanel";
+import StudentAssignmentsPanel from "../StudentAssignmentsPanel";
 
 export default function StudentDashboard() {
   const router = useRouter();
@@ -13,7 +15,6 @@ export default function StudentDashboard() {
   const [activePanel, setActivePanel] = useState("bio_data");
 
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
   const [currentStudentEmail, setCurrentStudentEmail] = useState("");
   
   // Student Bio Data Fields
@@ -25,7 +26,7 @@ export default function StudentDashboard() {
   const [parentName, setParentName] = useState("");
   const [parentPhone, setParentPhone] = useState("");
   
-  // Admin Onboarding Assigned Fields
+  // Admin Onboarding Assigned Fields & Toggle Updates
   const [studentSection, setStudentSection] = useState("Unassigned");
   const [classLevel, setClassLevel] = useState("Unassigned");
   
@@ -40,16 +41,12 @@ export default function StudentDashboard() {
   const [performanceRecords, setPerformanceRecords] = useState([]);
   
   // Updated States for School Level Tier, Term Folders, and Progression Logics
-  const [selectedSchoolLevelTier, setSelectedSchoolLevelTier] = useState("JSS1");
-  const [selectedTermFolder, setSelectedTermFolder] = useState("1st Term");
   const [isJss2Unlocked, setIsJss2Unlocked] = useState(false);
   const [isJss3ToSs1Transitioned, setIsJss3ToSs1Transitioned] = useState(false);
 
   // Assignment Pipeline States
   const [courseAssignments, setCourseAssignments] = useState([]);
   const [selectedAssignment, setSelectedAssignment] = useState(null);
-  const [submissionFile, setSubmissionFile] = useState(null);
-  const [uploadingAssignment, setUploadingAssignment] = useState(false);
   // Live Timers State Engine Matrix
   const [assignmentTimers, setAssignmentTimers] = useState({});
   // Global Institutional Settings Assets States
@@ -83,7 +80,6 @@ export default function StudentDashboard() {
       setRegisteredCourseIds(registrations.map(r => r.course_id));
       setPerformanceRecords(registrations);
 
-      // Evaluate JSS1 to JSS2 Average Logic (>= 50% across 1st, 2nd, 3rd terms)
       evaluateJssProgression(registrations);
 
       if (registrations.length > 0) {
@@ -95,11 +91,9 @@ export default function StudentDashboard() {
     }
   }
 
-  // Logic to evaluate JSS1 -> JSS2 (>= 50% average across terms) and JSS3 -> SS1 Junior WAEC automatic transition
   function evaluateJssProgression(registrations) {
     const jss1TermRecords = registrations.filter(r => (r.school_level_tier || "JSS1") === "JSS1");
     
-    // Group totals by term
     const termAverages = ["1st Term", "2nd Term", "3rd Term"].map(term => {
       const termRegs = jss1TermRecords.filter(r => r.school_term === term);
       if (termRegs.length === 0) return 0;
@@ -107,7 +101,6 @@ export default function StudentDashboard() {
       return termSum / termRegs.length;
     });
 
-    // Check if all 3 terms have scores and compute total average
     const hasAllTerms = termAverages.every(avg => avg > 0);
     if (hasAllTerms) {
       const overallJss1Avg = (termAverages[0] + termAverages[1] + termAverages[2]) / 3;
@@ -116,7 +109,6 @@ export default function StudentDashboard() {
       }
     }
 
-    // Check Junior WAEC / JSS3 transition to SS1 First Term automatically
     const jss3Records = registrations.filter(r => (r.school_level_tier || "").toUpperCase() === "JSS3");
     if (jss3Records.length > 0) {
       setIsJss3ToSs1Transitioned(true);
@@ -124,7 +116,6 @@ export default function StudentDashboard() {
     }
   }
 
-  // Fetch Published Faculty Tasks
   async function fetchAssignmentsAndSubmissions(courseIds, studentEmail) {
     try {
       const { data: assignments, error: assignErr } = await supabase
@@ -161,17 +152,13 @@ export default function StudentDashboard() {
     }
   }
 
-  // Fetch Global Institutional Asset Settings Safely
   async function fetchInstitutionalSettings() {
     try {
       const { data, error } = await supabase
         .from("school_settings")
         .select("school_stamp_url, admin_signature_url");
 
-      if (error) {
-        console.warn("Notice: school_settings schema node cache uninitialized.");
-        return;
-      }
+      if (error) return;
 
       if (data && data.length > 0) {
         setSchoolStamp(data[0].school_stamp_url || "");
@@ -182,7 +169,6 @@ export default function StudentDashboard() {
     }
   }
 
-  // Live Timer Core Interval Runner Engine
   useEffect(() => {
     if (courseAssignments.length === 0) return;
 
@@ -195,10 +181,7 @@ export default function StudentDashboard() {
         const distance = targetDeadline - now;
 
         if (distance <= 0) {
-          updatedTimers[asm.id] = {
-            displayString: "Locked / Ended",
-            isExpired: true,
-          };
+          updatedTimers[asm.id] = { displayString: "Locked / Ended", isExpired: true };
         } else {
           const days = Math.floor(distance / (1000 * 60 * 60 * 24));
           const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
@@ -209,10 +192,7 @@ export default function StudentDashboard() {
           if (days > 0) displayString += `${days}d `;
           displayString += `${hours}h ${minutes}m ${seconds}s`;
 
-          updatedTimers[asm.id] = {
-            displayString,
-            isExpired: false,
-          };
+          updatedTimers[asm.id] = { displayString, isExpired: false };
         }
       });
 
@@ -221,16 +201,13 @@ export default function StudentDashboard() {
 
     computeTimers();
     const timerInterval = setInterval(computeTimers, 1000);
-
     return () => clearInterval(timerInterval);
   }, [courseAssignments]);
 
-  // Load everything on initial page load
   useEffect(() => {
     async function loadStudentWorkspace() {
       try {
         const loggedInUser = localStorage.getItem("active_student_email");
-        
         if (!loggedInUser) {
           router.push("/login");
           return;
@@ -288,66 +265,6 @@ export default function StudentDashboard() {
     loadStudentWorkspace();
   }, [router]);
 
-  // File processing handler
-  function handleFileChange(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      alert("Invalid format: Please choose a valid image file (PNG/JPG).");
-      return;
-    }
-    setPassportFile(file);
-    setPassportPreview(URL.createObjectURL(file));
-  }
-
-  // Handle Bio Data Saving Action
-  async function handleSaveBioData(e) {
-    e.preventDefault();
-    if (!currentStudentEmail) {
-      alert("❌ Session Error: Lost authorization reference key.");
-      return;
-    }
-    setSubmitting(true);
-
-    try {
-      let finalPassportUrl = savedPassportUrl;
-      if (passportFile) {
-        const fileExtension = passportFile.name.split(".").pop();
-        const safeFileName = `${regNumber || "student"}_${Date.now()}.${fileExtension}`;
-        const { error: uploadError } = await supabase.storage
-          .from("passports")
-          .upload(safeFileName, passportFile, { cacheControl: "3600", upsert: true });
-        if (uploadError) throw uploadError;
-
-        const { data: publicUrlData } = supabase.storage
-          .from("passports")
-          .getPublicUrl(safeFileName);
-        finalPassportUrl = publicUrlData.publicUrl;
-      }
-
-      const { error: updateError } = await supabase
-        .from("students")
-        .update({
-          name: fullName.trim(),
-          phone: phone.trim(),
-          gender: gender,
-          dob: dob,
-          parent_name: parentName.trim(),
-          parent_phone: parentPhone.trim(),
-          passport_url: finalPassportUrl
-        })
-        .eq("email", currentStudentEmail);
-      if (updateError) throw updateError;
-
-      setSavedPassportUrl(finalPassportUrl);
-      alert("✨ Profile details committed successfully!");
-    } catch (err) {
-      alert("Process Failure: " + err.message);
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
   const totalCoursesCount = performanceRecords.length;
   const overallAverageScore = totalCoursesCount > 0 
     ? (performanceRecords.reduce((sum, r) => {
@@ -370,52 +287,6 @@ export default function StudentDashboard() {
 
   return (
     <div className="min-h-screen bg-slate-50/60 p-3 sm:p-4 md:p-8 font-sans print:p-0 print:bg-white overflow-x-hidden">
-      
-      <style dangerouslySetInnerHTML={{__html: `
-        @media print {
-          .no-print-wrapper { display: none !important; }
-          .print-root-container { padding: 0 !important; background: white !important; margin: 0 !important; max-width: 100% !important; width: 100% !important; overflow: visible !important; }
-          .print-sheet-node { 
-            display: block !important; 
-            border: none !important; 
-            box-shadow: none !important; 
-            padding: 4mm !important; 
-            margin: 0 !important;
-            width: 100% !important;
-            background: white !important;
-            position: relative !important;
-          }
-          .print-stamp-box {
-            border: 2px dashed #000000 !important;
-            background-color: #fafafa !important;
-            display: block !important;
-            min-height: 65px !important;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-          }
-          .print-watermark-container {
-            display: flex !important;
-            opacity: 0.03 !important;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-          }
-          .print-signature-line {
-            border-bottom: 2px solid #000000 !important;
-          }
-          .print-avoid-break {
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
-          }
-          @page { size: A4 portrait; margin: 8mm 10mm 8mm 10mm; }
-        }
-
-        @media screen and (max-width: 640px) {
-          input, select, button {
-            font-size: 16px !important;
-          }
-        }
-      `}} />
-
       <div className="max-w-5xl mx-auto print-root-container w-full box-border">
         
         {/* Header */}
@@ -454,105 +325,36 @@ export default function StudentDashboard() {
         </div>
 
         <div className="w-full">
-          {/* PANEL 1: STUDENT BIO DATA */}
+          {/* PANEL 1: STUDENT BIO DATA MODULE */}
           {activePanel === "bio_data" && (
-            <form onSubmit={handleSaveBioData} className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8 no-print-wrapper">
-              <div className="bg-white p-6 rounded-3xl border border-slate-100 flex flex-col items-center justify-center text-center space-y-4 shadow-sm h-fit">
-                <label className="block text-xs font-bold uppercase text-slate-400 tracking-wider">Official Passport Photo</label>
-                <div className="h-40 w-40 sm:h-44 sm:w-44 rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200 overflow-hidden flex items-center justify-center relative group">
-                  {passportPreview ? (
-                    <img src={passportPreview} alt="Passport" className="h-full w-full object-cover" />
-                  ) : (
-                    <div className="text-slate-300 text-xs px-4">No Passport Selected</div>
-                  )}
-                </div>
-                <div className="w-full">
-                  <label className="block w-full text-center bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs py-3 px-4 rounded-xl cursor-pointer transition-all">
-                    Choose Image File
-                    <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
-                  </label>
-                  <p className="text-[10px] text-slate-400 mt-2">Accepted formats: JPG, PNG. Max weight: 2MB.</p>
-                </div>
-              </div>
-
-              <div className="md:col-span-2 bg-white p-5 sm:p-6 md:p-8 rounded-3xl border border-slate-100 shadow-sm space-y-6">
-                <div>
-                  <h3 className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">Section 1: Personal Details</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold uppercase text-slate-400 tracking-wider mb-1.5">Full Legal Name</label>
-                      <input type="text" required value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full rounded-xl border border-slate-200 p-3 text-sm text-slate-800 outline-none focus:border-indigo-600 bg-slate-50/50" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold uppercase text-slate-400 tracking-wider mb-1.5">Registration Identifier</label>
-                      <input type="text" disabled value={regNumber || "Pending Allocation"} className="w-full rounded-xl border border-slate-200 p-3 text-sm text-slate-400 bg-slate-100 outline-none cursor-not-allowed font-mono" />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-                    <div>
-                      <label className="block text-xs font-bold uppercase text-slate-400 tracking-wider mb-1.5">School Level Tier</label>
-                      <select value={studentSection} onChange={(e) => setStudentSection(e.target.value)} className="w-full rounded-xl border border-slate-200 p-3 text-sm text-indigo-700 bg-indigo-50 font-bold outline-none tracking-wide">
-                        <option value="Primary">Primary</option>
-                        <option value="Secondary">Secondary</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold uppercase text-slate-400 tracking-wider mb-1.5">Assigned Class Level</label>
-                      <input type="text" disabled value={classLevel} className="w-full rounded-xl border border-slate-200 p-3 text-sm text-indigo-700 bg-indigo-50 font-bold outline-none cursor-not-allowed tracking-wide" />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-                    <div>
-                      <label className="block text-xs font-bold uppercase text-slate-400 tracking-wider mb-1.5">Contact Telephone</label>
-                      <input type="tel" required placeholder="+225 00 00 00 00" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full rounded-xl border border-slate-200 p-3 text-sm text-slate-800 outline-none focus:border-indigo-600 bg-slate-50/50" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold uppercase text-slate-400 tracking-wider mb-1.5">Gender</label>
-                      <select required value={gender} onChange={(e) => setGender(e.target.value)} className="w-full rounded-xl border border-slate-200 p-3 text-sm text-slate-800 outline-none focus:border-indigo-600 bg-slate-50/50">
-                        <option value="">Select Option</option>
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-                    <div>
-                      <label className="block text-xs font-bold uppercase text-slate-400 tracking-wider mb-1.5">Date of Birth</label>
-                      <input type="date" required value={dob} onChange={(e) => setDob(e.target.value)} className="w-full rounded-xl border border-slate-200 p-3 text-sm text-slate-800 outline-none focus:border-indigo-600 bg-slate-50/50" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold uppercase text-slate-400 tracking-wider mb-1.5">Institutional Email</label>
-                      <input type="text" disabled value={currentStudentEmail} className="w-full rounded-xl border border-slate-200 p-3 text-sm text-slate-400 bg-slate-100 outline-none cursor-not-allowed truncate" />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pt-2">
-                  <h3 className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">Section 2: Next of Kin / Guardian</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold uppercase text-slate-400 tracking-wider mb-1.5">Parent / Guardian Name</label>
-                      <input type="text" required placeholder="Father or Mother's Full Name" value={parentName} onChange={(e) => setParentName(e.target.value)} className="w-full rounded-xl border border-slate-200 p-3 text-sm text-slate-800 outline-none focus:border-indigo-600 bg-slate-50/50" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold uppercase text-slate-400 tracking-wider mb-1.5">Parent Emergency Phone</label>
-                      <input type="tel" required placeholder="+225 00 00 00 00" value={parentPhone} onChange={(e) => setParentPhone(e.target.value)} className="w-full rounded-xl border border-slate-200 p-3 text-sm text-slate-800 outline-none focus:border-indigo-600 bg-slate-50/50" />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pt-2">
-                  <button type="submit" disabled={submitting} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-sm py-4 rounded-xl transition-all cursor-pointer shadow-lg shadow-emerald-500/10">
-                    {submitting ? "Processing Profile Commit..." : "Commit Bio Data Registry"}
-                  </button>
-                </div>
-              </div>
-            </form>
+            <StudentBioPanel
+              currentStudentEmail={currentStudentEmail}
+              fullName={fullName}
+              setFullName={setFullName}
+              regNumber={regNumber}
+              phone={phone}
+              setPhone={setPhone}
+              gender={gender}
+              setGender={setGender}
+              dob={dob}
+              setDob={setDob}
+              parentName={parentName}
+              setParentName={setParentName}
+              parentPhone={parentPhone}
+              setParentPhone={setParentPhone}
+              studentSection={studentSection}
+              setStudentSection={setStudentSection}
+              classLevel={classLevel}
+              setClassLevel={setClassLevel}
+              passportPreview={passportPreview}
+              setPassportFile={setPassportFile}
+              setPassportPreview={setPassportPreview}
+              savedPassportUrl={savedPassportUrl}
+              setSavedPassportUrl={setSavedPassportUrl}
+            />
           )}
 
-          {/* PANEL 2: EXTERNALIZED COURSE REGISTRATION PANEL COMPONENT */}
+          {/* PANEL 2: COURSE REGISTRATION MODULE */}
           {activePanel === "course_reg" && (
             <CourseRegistrationPanel
               currentStudentEmail={currentStudentEmail}
@@ -567,63 +369,17 @@ export default function StudentDashboard() {
             />
           )}
 
-          {/* PANEL 3: ASSIGNMENTS CONTAINER */}
+          {/* PANEL 3: ASSIGNMENTS MODULE */}
           {activePanel === "assignments" && (
-            <div className="bg-white p-5 sm:p-6 md:p-8 rounded-3xl sm:rounded-[2rem] border border-slate-100 shadow-sm no-print-wrapper">
-              <div className="mb-6">
-                <h3 className="text-base font-black text-slate-800 tracking-tight">Active Assignment Pipelines</h3>
-                <p className="text-xs text-slate-400 mt-0.5">Task sheets distributed by faculty for your registered coursework units.</p>
-              </div>
-              {performanceRecords.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="h-12 w-12 bg-amber-50 text-amber-500 rounded-xl flex items-center justify-center mx-auto mb-4 text-xl">📂</div>
-                  <h3 className="text-sm font-bold text-slate-700">No Assessment Task Profiles Formed</h3>
-                  <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1">Register courses inside the enrollment hub to automatically mount distinct continuous task paths here.</p>
-                </div>
-              ) : courseAssignments.length === 0 ? (
-                <p className="text-sm font-medium text-slate-400 text-center py-8">No published tasks uploaded by instructors for your registered modules yet.</p>
-              ) : (
-                <div className="space-y-4">
-                  {courseAssignments.map((asm) => {
-                    const timer = assignmentTimers[asm.id] || { displayString: "Syncing...", isExpired: false };
-                    return (
-                      <div key={asm.id} className="p-4 sm:p-5 bg-slate-50/50 border border-slate-200/60 rounded-2xl flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                        <div className="space-y-1 min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-xs font-mono font-bold text-indigo-600 uppercase tracking-wider">{asm.courses?.code}</span>
-                            <span className={`text-[9px] px-2 py-0.5 rounded font-black uppercase ${asm.hasSubmitted ? "bg-emerald-100 text-emerald-800" : timer.isExpired ? "bg-rose-100 text-rose-800" : "bg-amber-100 text-amber-800"}`}>
-                              {asm.hasSubmitted ? "Turned In" : timer.isExpired ? "Terminated" : "Pending Action"}
-                            </span>
-                          </div>
-                          <h4 className="text-sm font-black text-slate-800 mt-1 break-words">{asm.title}</h4>
-                          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-[11px] text-slate-400 pt-1">
-                            <p className="truncate">⏳ Assigned: <span className="font-medium text-slate-600">{new Date(asm.created_at).toLocaleString()}</span></p>
-                            {!asm.hasSubmitted && (
-                              <p className={`font-mono font-bold ${timer.isExpired ? "text-rose-500" : "text-indigo-600"}`}>
-                                🕒 Remaining: {timer.displayString}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap sm:flex-nowrap gap-2 items-center w-full md:w-auto">
-                          <a href={asm.file_url} target="_blank" rel="noreferrer" className="flex-1 sm:flex-none text-center bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-3.5 py-2.5 rounded-xl transition-all">📖 Briefing File</a>
-                          {asm.hasSubmitted ? (
-                            <a href={asm.submittedFileUrl} target="_blank" rel="noreferrer" className="flex-1 sm:flex-none text-center bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold text-xs px-3.5 py-2.5 rounded-xl transition-all">📁 View Turn-In</a>
-                          ) : (
-                            <button type="button" disabled={timer.isExpired} onClick={() => setSelectedAssignment(asm)} className={`flex-1 sm:flex-none font-bold text-xs px-3.5 py-2.5 rounded-xl transition-all shadow-md items-center justify-center cursor-pointer ${timer.isExpired ? "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none" : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-100"}`}>
-                              {timer.isExpired ? "🔒 Locked" : "📤 Upload Task"}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+            <StudentAssignmentsPanel
+              performanceRecords={performanceRecords}
+              courseAssignments={courseAssignments}
+              setSelectedAssignment={setSelectedAssignment}
+              assignmentTimers={assignmentTimers}
+            />
           )}
 
-          {/* PANEL 4: RESULTS MATRIX */}
+          {/* PANEL 4: RESULTS MATRIX MODULE */}
           {activePanel === "results" && (
             <div className="w-full overflow-x-auto">
               <ResultViewer 
