@@ -50,6 +50,13 @@ export default function CentralAuthGateway() {
         .maybeSingle();
 
       if (teacher) {
+        // Enforce suspension check for teachers
+        if (teacher.status && teacher.status !== "Active") {
+          alert("Access Denied: Your instructor account has been suspended. Please contact the school administrator.");
+          setIsChecking(false);
+          return;
+        }
+
         setUserRole("teacher");
         setProfile({
           name: teacher.name,
@@ -98,6 +105,21 @@ export default function CentralAuthGateway() {
       if (userRole === "admin") targetTable = "admin_auth";
       else if (userRole === "teacher") targetTable = "teachers";
       else if (userRole === "student") targetTable = "students";
+
+      // Double-check teacher status on submission step just in case state changed
+      if (userRole === "teacher") {
+        const { data: freshTeacher } = await supabase
+          .from("teachers")
+          .select("status")
+          .eq("email", cleanEmail)
+          .maybeSingle();
+
+        if (freshTeacher && freshTeacher.status !== "Active") {
+          alert("❌ Access Denied: Your account has been suspended. Portal login blocked.");
+          setIsSubmitting(false);
+          return;
+        }
+      }
 
       // Strict enforcement: If a password already exists in the database, match it strictly.
       if (profile.storedPassword !== "") {

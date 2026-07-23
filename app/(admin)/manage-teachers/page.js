@@ -350,10 +350,10 @@ export default function ManageTeachersPage() {
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
                           teacher.status === "Active" ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "bg-rose-50 text-rose-700 border border-rose-100"
                         }`}>
-                          {teacher.status}
+                          {teacher.status === "Active" ? "🟢 Active (Access Granted)" : "🔴 Suspended (Blocked)"}
                         </span>
                         <div className="text-[10px] text-slate-400 font-mono">
-                          {teacher.status === "Active" ? (teacher.password_configured ? "🔐 Portal Active" : "⏳ Pending Set") : "🚫 Access Blocked"}
+                          {teacher.password_configured ? "🔐 Portal Active" : "⏳ Pending Set"}
                         </div>
                       </div>
                     </td>
@@ -431,14 +431,14 @@ export default function ManageTeachersPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-1">Operational Status</label>
+                  <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-1">Operational Status & Login Access</label>
                   <select
                     value={formData.status}
                     onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                    className="w-full rounded-xl border border-slate-200 p-2.5 text-sm text-slate-800 bg-white"
+                    className="w-full rounded-xl border border-slate-200 p-2.5 text-sm text-slate-800 bg-white font-medium"
                   >
-                    <option value="Active">Active (Member / Portal Access Allowed)</option>
-                    <option value="Suspended">Suspended (Blocked / Portal Access Denied)</option>
+                    <option value="Active">🟢 Active (Portal Login Allowed)</option>
+                    <option value="Suspended">🔴 Suspended (Portal Access Blocked)</option>
                   </select>
                 </div>
               </div>
