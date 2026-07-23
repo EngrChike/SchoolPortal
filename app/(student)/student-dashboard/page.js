@@ -33,10 +33,17 @@ export default function StudentDashboard() {
   const [passportPreview, setPassportPreview] = useState(null);
   const [savedPassportUrl, setSavedPassportUrl] = useState("");
 
-  // Course Registration State Arrays
+  // Course Registration State Arrays & Academic Terms/Archives
   const [availableCourses, setAvailableCourses] = useState([]);
   const [registeredCourseIds, setRegisteredCourseIds] = useState([]);
   const [performanceRecords, setPerformanceRecords] = useState([]);
+  
+  // New States for Yearly, Term Folders, and Progression Logics
+  const [selectedYearlySection, setSelectedYearlySection] = useState("JSS1");
+  const [selectedTermFolder, setSelectedTermFolder] = useState("1st Term");
+  const [archivedTermRecords, setArchivedTermRecords] = useState({ "1st Term": [], "2nd Term": [], "3rd Term": [] });
+  const [isJss2Unlocked, setIsJss2Unlocked] = useState(false);
+  const [isJss3ToSs1Transitioned, setIsJss3ToSs1Transitioned] = useState(false);
 
   // Assignment Pipeline States
   const [courseAssignments, setCourseAssignments] = useState([]);
@@ -66,6 +73,7 @@ export default function StudentDashboard() {
         mid_semester,
         final_exam,
         school_term,
+        yearly_section,
         courses:course_id (
           id,
           name,
@@ -80,12 +88,44 @@ export default function StudentDashboard() {
       setRegisteredCourseIds(registrations.map(r => r.course_id));
       setPerformanceRecords(registrations);
 
+      // Evaluate JSS1 to JSS2 Average Logic (>= 50% across 1st, 2nd, 3rd terms)
+      evaluateJssProgression(registrations);
+
       if (registrations.length > 0) {
         const courseIds = registrations.map(r => r.course_id);
         await fetchAssignmentsAndSubmissions(courseIds, studentEmail);
       } else {
         setCourseAssignments([]);
       }
+    }
+  }
+
+  // Logic to evaluate JSS1 -> JSS2 (>= 50% average across terms) and JSS3 -> SS1 Junior WAEC automatic transition
+  function evaluateJssProgression(registrations) {
+    const jss1TermRecords = registrations.filter(r => (r.yearly_section || "JSS1") === "JSS1");
+    
+    // Group totals by term
+    const termAverages = ["1st Term", "2nd Term", "3rd Term"].map(term => {
+      const termRegs = jss1TermRecords.filter(r => r.school_term === term);
+      if (termRegs.length === 0) return 0;
+      const termSum = termRegs.reduce((sum, r) => sum + ((r.continuous_assessment || 0) + (r.mid_semester || 0) + (r.final_exam || 0)), 0);
+      return termSum / termRegs.length;
+    });
+
+    // Check if all 3 terms have scores and compute total average
+    const hasAllTerms = termAverages.every(avg => avg > 0);
+    if (hasAllTerms) {
+      const overallJss1Avg = (termAverages[0] + termAverages[1] + termAverages[2]) / 3;
+      if (overallJss1Avg >= 50) {
+        setIsJss2Unlocked(true);
+      }
+    }
+
+    // Check Junior WAEC / JSS3 transition to SS1 First Term automatically
+    const jss3Records = registrations.filter(r => (r.yearly_section || "").toUpperCase() === "JSS3");
+    if (jss3Records.length > 0) {
+      setIsJss3ToSs1Transitioned(true);
+      setClassLevel("SS1");
     }
   }
 
@@ -329,7 +369,9 @@ export default function StudentDashboard() {
           .from("course_registrations")
           .insert({
             student_email: currentStudentEmail,
-            course_id: courseId
+            course_id: courseId,
+            yearly_section: selectedYearlySection,
+            school_term: formSchoolTerm || "First Term"
           });
         if (error) throw error;
       }
@@ -337,6 +379,42 @@ export default function StudentDashboard() {
       await fetchRegistrationsAndGrades(currentStudentEmail);
     } catch (err) {
       alert("Registration Update Error: " + err.message);
+    }
+  }
+
+  // Clear / Archive Registered Courses for current term and section
+  async function handleClearRegisteredCourses(termName) {
+    if (!confirm(`Are you sure you want to clear and archive registrations for ${selectedYearlySection} - ${termName}?`)) return;
+    try {
+      const { error } = await supabase
+        .from("course_registrations")
+        .delete()
+        .eq("student_email", currentStudentEmail)
+        .eq("yearly_section", selectedYearlySection)
+        .eq("school_term", termName);
+
+      if (error) throw error;
+      alert(`✅ Courses successfully cleared and stored for ${selectedYearlySection} (${termName})!`);
+      await fetchRegistrationsAndGrades(currentStudentEmail);
+    } catch (err) {
+      alert("Clear Registration Error: " + err.message);
+    }
+  }
+
+  // Edit / Update an existing registration record entry
+  async function handleEditCourseRegistration(courseId, newTerm) {
+    try {
+      const { error } = await supabase
+        .from("course_registrations")
+        .update({ school_term: newTerm })
+        .eq("student_email", currentStudentEmail)
+        .eq("course_id", courseId);
+
+      if (error) throw error;
+      alert("✏️ Course registration term successfully updated!");
+      await fetchRegistrationsAndGrades(currentStudentEmail);
+    } catch (err) {
+      alert("Update Error: " + err.message);
     }
   }
 
@@ -394,7 +472,8 @@ export default function StudentDashboard() {
         .insert({
           student_email: currentStudentEmail,
           course_id: targetCourseId,
-          school_term: formSchoolTerm.trim()
+          school_term: formSchoolTerm.trim(),
+          yearly_section: selectedYearlySection
         });
       if (regError) throw regError;
 
@@ -421,7 +500,6 @@ export default function StudentDashboard() {
       }, 0) / totalCoursesCount).toFixed(2)
     : "0.00";
 
-  // Automatically extract the active academic term from registrations or default to First Term
   const activeTermName = performanceRecords.find(r => r.school_term)?.school_term || "First Term";
 
   if (loading) {
@@ -473,10 +551,9 @@ export default function StudentDashboard() {
           @page { size: A4 portrait; margin: 8mm 10mm 8mm 10mm; }
         }
 
-        /* Extra Mobile Layout Fixes */
         @media screen and (max-width: 640px) {
           input, select, button {
-            font-size: 16px !important; /* Prevents auto-zoom on iOS */
+            font-size: 16px !important;
           }
         }
       `}} />
@@ -510,7 +587,7 @@ export default function StudentDashboard() {
           </div>
         </div>
 
-        {/* Panel Tabs - Horizontal scrollable on smaller screens for safety */}
+        {/* Panel Tabs */}
         <div className="flex sm:grid sm:grid-cols-4 gap-2 mb-6 sm:mb-8 bg-slate-200/50 p-2 rounded-2xl border border-slate-200/40 no-print-wrapper overflow-x-auto scrollbar-none">
           <button type="button" onClick={() => setActivePanel("bio_data")} className={`py-3 px-4 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex-1 text-center ${activePanel === "bio_data" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}>📋 Student Data</button>
           <button type="button" onClick={() => setActivePanel("course_reg")} className={`py-3 px-4 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex-1 text-center ${activePanel === "course_reg" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}>✏️ Course Registration</button>
@@ -614,60 +691,118 @@ export default function StudentDashboard() {
             </form>
           )}
 
-          {/* PANEL 2: COURSE REGISTRATION HUB */}
+          {/* PANEL 2: COURSE REGISTRATION HUB WITH YEARLY SECTIONS & TERM FOLDERS */}
           {activePanel === "course_reg" && (
             <div className="space-y-6 sm:space-y-8 no-print-wrapper">
-              <div className="bg-white p-5 sm:p-6 md:p-8 rounded-3xl sm:rounded-[2rem] border border-slate-100 shadow-sm">
-                <div className="mb-6">
-                  <h3 className="text-sm sm:text-base font-black text-slate-800 tracking-tight">Add New Course Registration</h3>
-                  <p className="text-xs text-slate-400 mt-0.5">Input your target course descriptors manually to map them into your ongoing portfolio matrix.</p>
+              
+              {/* Yearly Section Selector Navigation */}
+              <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Select Yearly Class Section</h3>
+                  <p className="text-xs text-slate-400">Choose the yearly milestone folder to view or register courses.</p>
                 </div>
-
-                <form onSubmit={handleManualCourseSubmit} className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
-                  <div>
-                    <label className="block text-xs font-bold uppercase text-slate-400 tracking-wider mb-1.5">Course Name</label>
-                    <input type="text" required placeholder="e.g. Mathematics" value={formCourseName} onChange={(e) => setFormCourseName(e.target.value)} className="w-full rounded-xl border border-slate-200 p-3 text-sm text-slate-800 outline-none focus:border-indigo-600 bg-slate-50/50" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold uppercase text-slate-400 tracking-wider mb-1.5">Course Code</label>
-                    <input type="text" required placeholder="e.g. MAT 101" value={formCourseCode} onChange={(e) => setFormCourseCode(e.target.value)} className="w-full rounded-xl border border-slate-200 p-3 text-sm text-slate-800 outline-none focus:border-indigo-600 bg-slate-50/50 font-mono uppercase" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold uppercase text-slate-400 tracking-wider mb-1.5">School Term</label>
-                    <select required value={formSchoolTerm} onChange={(e) => setFormSchoolTerm(e.target.value)} className="w-full rounded-xl border border-slate-200 p-3 text-sm text-slate-800 outline-none focus:border-indigo-600 bg-slate-50/50">
-                      <option value="">Select Academic Term</option>
-                      <option value="First Term">First Term</option>
-                      <option value="Second Term">Second Term</option>
-                      <option value="Third Term">Third Term</option>
-                    </select>
-                  </div>
-                  <div className="sm:col-span-3 pt-2">
-                    <button type="submit" disabled={formSubmitting} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm py-3 rounded-xl transition-all shadow-md cursor-pointer">
-                      {formSubmitting ? "Linking Academic Rows..." : "Submit & Register Course Entry"}
-                    </button>
-                  </div>
-                </form>
+                <div className="flex gap-2 w-full sm:w-auto">
+                  <button type="button" onClick={() => setSelectedYearlySection("JSS1")} className={`flex-1 sm:flex-none py-2.5 px-4 rounded-xl text-xs font-bold cursor-pointer transition-all ${selectedYearlySection === "JSS1" ? "bg-indigo-600 text-white shadow-md" : "bg-slate-100 text-slate-600"}`}>
+                    JSS1 (Active)
+                  </button>
+                  <button type="button" onClick={() => isJss2Unlocked ? setSelectedYearlySection("JSS2") : alert("🔒 JSS2 is locked! You must obtain an overall average score >= 50% across JSS1 1st, 2nd, and 3rd terms.")} className={`flex-1 sm:flex-none py-2.5 px-4 rounded-xl text-xs font-bold cursor-pointer transition-all ${selectedYearlySection === "JSS2" ? "bg-indigo-600 text-white shadow-md" : isJss2Unlocked ? "bg-slate-100 text-slate-600" : "bg-slate-100 text-slate-400 opacity-60"}`}>
+                    {isJss2Unlocked ? "JSS2" : "🔒 JSS2 (Locked)"}
+                  </button>
+                  <button type="button" onClick={() => isJss3ToSs1Transitioned ? setSelectedYearlySection("SS1") : setSelectedYearlySection("JSS3")} className="flex-1 sm:flex-none py-2.5 px-4 rounded-xl text-xs font-bold cursor-pointer bg-slate-100 text-slate-600 transition-all">
+                    {isJss3ToSs1Transitioned ? "SS1 (Junior WAEC Graduated)" : "JSS3"}
+                  </button>
+                </div>
               </div>
 
+              {/* Term Folders and Clear / Archive Section */}
+              <div className="bg-white p-5 sm:p-6 md:p-8 rounded-3xl sm:rounded-[2rem] border border-slate-100 shadow-sm space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-100">
+                  <div>
+                    <h3 className="text-sm sm:text-base font-black text-slate-800 tracking-tight">Term Storage Folders ({selectedYearlySection})</h3>
+                    <p className="text-xs text-slate-400">Toggle term folders, register entries, or clear completed terms.</p>
+                  </div>
+                  <div className="flex gap-2">
+                    {["1st Term", "2nd Term", "3rd Term"].map((term) => (
+                      <button key={term} type="button" onClick={() => setSelectedTermFolder(term)} className={`py-2 px-3 rounded-xl text-xs font-bold cursor-pointer transition-all ${selectedTermFolder === term ? "bg-indigo-50 text-indigo-700 border border-indigo-200" : "bg-slate-50 text-slate-600 border border-transparent"}`}>
+                        📁 {term}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Term Action Bar: Clear/Archive Button */}
+                <div className="flex items-center justify-between p-4 bg-amber-50/60 border border-amber-200/60 rounded-2xl">
+                  <div>
+                    <h4 className="text-xs font-bold text-amber-900 uppercase">Complete Term Archive Manager</h4>
+                    <p className="text-[11px] text-amber-700 mt-0.5">Clicking this clears active courses for <span className="font-bold underline">{selectedYearlySection} - {selectedTermFolder}</span> and moves them into storage.</p>
+                  </div>
+                  <button type="button" onClick={() => handleClearRegisteredCourses(selectedTermFolder)} className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs py-2.5 px-4 rounded-xl transition-all cursor-pointer shadow-sm flex-shrink-0">
+                    Clear & Store {selectedYearlySection} ({selectedTermFolder})
+                  </button>
+                </div>
+
+                {/* Manual Course Entry Form for Selected Yearly & Term Folder */}
+                <div className="pt-2">
+                  <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider mb-3">Add Course for {selectedYearlySection} [{selectedTermFolder}]</h4>
+                  <form onSubmit={handleManualCourseSubmit} className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+                    <div>
+                      <label className="block text-xs font-bold uppercase text-slate-400 tracking-wider mb-1.5">Course Name</label>
+                      <input type="text" required placeholder="e.g. Mathematics" value={formCourseName} onChange={(e) => setFormCourseName(e.target.value)} className="w-full rounded-xl border border-slate-200 p-3 text-sm text-slate-800 outline-none focus:border-indigo-600 bg-slate-50/50" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold uppercase text-slate-400 tracking-wider mb-1.5">Course Code</label>
+                      <input type="text" required placeholder="e.g. MAT 101" value={formCourseCode} onChange={(e) => setFormCourseCode(e.target.value)} className="w-full rounded-xl border border-slate-200 p-3 text-sm text-slate-800 outline-none focus:border-indigo-600 bg-slate-50/50 font-mono uppercase" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold uppercase text-slate-400 tracking-wider mb-1.5">School Term</label>
+                      <input type="text" disabled value={selectedTermFolder} className="w-full rounded-xl border border-slate-200 p-3 text-sm text-indigo-700 bg-indigo-50 font-bold outline-none cursor-not-allowed" />
+                    </div>
+                    <div className="sm:col-span-3 pt-2">
+                      <button type="submit" disabled={formSubmitting} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm py-3 rounded-xl transition-all shadow-md cursor-pointer">
+                        {formSubmitting ? "Linking Academic Rows..." : `Submit & Register Course Entry for ${selectedYearlySection}`}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+
+              {/* Registered Records Listing with Edit and Delete Capabilities */}
               <div className="bg-white p-5 sm:p-6 md:p-8 rounded-3xl sm:rounded-[2rem] border border-slate-100 shadow-sm">
                 <div className="mb-4">
-                  <h3 className="text-sm font-black text-slate-700 uppercase tracking-wider">Your Registered Academic Records</h3>
-                  <p className="text-xs text-slate-400 mt-0.5">Below is the localized live listing of all your currently locked academic registrations.</p>
+                  <h3 className="text-sm font-black text-slate-700 uppercase tracking-wider">Registered Records for {selectedYearlySection} ({selectedTermFolder})</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">Edit registration terms or delete incorrect course entries below.</p>
                 </div>
-                {performanceRecords.length === 0 ? (
-                  <p className="text-sm font-medium text-slate-400 text-center py-6 bg-slate-50 rounded-2xl border border-dashed border-slate-200">No registered profiles linked to this student key signature yet.</p>
+                {performanceRecords.filter(r => (r.yearly_section || "JSS1") === selectedYearlySection && r.school_term === selectedTermFolder).length === 0 ? (
+                  <p className="text-sm font-medium text-slate-400 text-center py-6 bg-slate-50 rounded-2xl border border-dashed border-slate-200">No registered courses found under {selectedYearlySection} - {selectedTermFolder}.</p>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {performanceRecords.map((record, index) => (
-                      <div key={index} className="p-4 rounded-xl border border-slate-200/80 bg-slate-50/40 flex items-center justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <span className="text-[10px] font-mono font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md uppercase inline-block">{record.courses?.code}</span>
-                          <h4 className="text-sm font-black text-slate-800 mt-1 truncate">{record.courses?.name}</h4>
-                          {record.school_term && <p className="text-[11px] text-slate-400 font-medium mt-0.5 truncate">🗓️ Term: {record.school_term}</p>}
+                    {performanceRecords
+                      .filter(r => (r.yearly_section || "JSS1") === selectedYearlySection && r.school_term === selectedTermFolder)
+                      .map((record, index) => (
+                        <div key={index} className="p-4 rounded-xl border border-slate-200/80 bg-slate-50/40 flex flex-col gap-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <span className="text-[10px] font-mono font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md uppercase inline-block">{record.courses?.code}</span>
+                              <h4 className="text-sm font-black text-slate-800 mt-1 truncate">{record.courses?.name}</h4>
+                            </div>
+                            <button type="button" onClick={() => toggleCourseRegistration(record.course_id)} className="text-xs font-bold text-rose-600 hover:text-rose-700 py-1.5 px-3 bg-rose-50 rounded-xl cursor-pointer flex-shrink-0">Delete</button>
+                          </div>
+                          
+                          {/* Edit Registration Term Option */}
+                          <div className="flex items-center gap-2 pt-2 border-t border-slate-200/50">
+                            <span className="text-[11px] text-slate-400 font-bold">Edit Term:</span>
+                            <select 
+                              value={record.school_term} 
+                              onChange={(e) => handleEditCourseRegistration(record.course_id, e.target.value)} 
+                              className="text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-lg p-1.5 outline-none focus:border-indigo-600 flex-1"
+                            >
+                              <option value="1st Term">1st Term</option>
+                              <option value="2nd Term">2nd Term</option>
+                              <option value="3rd Term">3rd Term</option>
+                            </select>
+                          </div>
                         </div>
-                        <button type="button" onClick={() => toggleCourseRegistration(record.course_id)} className="text-xs font-bold text-rose-600 hover:text-rose-700 py-2 px-3 bg-rose-50 rounded-xl cursor-pointer flex-shrink-0">Drop</button>
-                      </div>
-                    ))}
+                      ))}
                   </div>
                 )}
               </div>
@@ -730,7 +865,7 @@ export default function StudentDashboard() {
             </div>
           )}
 
-          {/* PANEL 4: RESULTS MATRIX (Rendered via ResultViewer Component) */}
+          {/* PANEL 4: RESULTS MATRIX */}
           {activePanel === "results" && (
             <div className="w-full overflow-x-auto">
               <ResultViewer 

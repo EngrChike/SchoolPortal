@@ -9,6 +9,9 @@ export default function AdminManageStudentsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Edit State Management
+  const [editingStudentId, setEditingStudentId] = useState(null);
+
   // Active Viewing Tier Matrix Filters
   const [activeTier, setActiveTier] = useState("secondary"); // 'primary' or 'secondary'
   const [activeClass, setActiveClass] = useState("jss1"); // Default active level selection filter
@@ -36,7 +39,7 @@ export default function AdminManageStudentsPage() {
 
   // Helper formatting engine text tags conversions
   const formatClassLabel = (slug) => {
-    return slug.replace("_", " ").toUpperCase();
+    return slug ? slug.replace("_", " ").toUpperCase() : "";
   };
 
   // Fetch Global Institutional Settings Assets
@@ -134,6 +137,39 @@ export default function AdminManageStudentsPage() {
     }
   }
 
+  // Delete Student Record
+  async function handleDeleteStudent(studentId) {
+    if (!confirm("Are you sure you want to delete this student record?")) return;
+
+    try {
+      const { error } = await supabase
+        .from("students")
+        .delete()
+        .eq("id", studentId);
+
+      if (error) throw error;
+
+      alert("🗑️ Student record successfully deleted!");
+      fetchStudents();
+    } catch (err) {
+      alert("Deletion Exception: " + err.message);
+    }
+  }
+
+  // Open Edit Modal with Existing Data
+  const handleOpenEditModal = (student) => {
+    setEditingStudentId(student.id);
+    setFormData({
+      name: student.name || "",
+      email: student.email || "",
+      school_tier: student.school_tier || activeTier,
+      class_level: student.class_level || activeClass,
+      academic_session: student.academic_session || "2026/2027",
+      current_term: student.current_term || "term_1"
+    });
+    setIsModalOpen(true);
+  };
+
   // Generate Unique 6-Digit Verification Result Pin Mapping
   async function generateStudentPin(studentId) {
     const generatedPin = Math.floor(100000 + Math.random() * 900000).toString();
@@ -166,11 +202,12 @@ export default function AdminManageStudentsPage() {
 
   // Function to securely trigger opening the modal with synchronized viewing targets
   const handleOpenOnboardModal = () => {
+    setEditingStudentId(null);
     setFormData({
       name: "",
       email: "",
-      school_tier: activeTier, // Dynamic form auto-alignment matching background view context
-      class_level: activeClass, // Dynamic class room alignment
+      school_tier: activeTier, 
+      class_level: activeClass, 
       academic_session: "2026/2027",
       current_term: "term_1"
     });
@@ -181,27 +218,46 @@ export default function AdminManageStudentsPage() {
     e.preventDefault();
     setIsSubmitting(true);
 
-    const generatedRegNo = `STU-2026-${Math.floor(1000 + Math.random() * 9000)}`;
-
     try {
-      const { error } = await supabase.from("students").insert([
-        {
-          reg_number: generatedRegNo,
-          name: formData.name,
-          email: formData.email.trim().toLowerCase(),
-          school_tier: formData.school_tier,
-          class_level: formData.class_level,
-          academic_session: formData.academic_session,
-          current_term: formData.current_term,
-          courses: [
-            { code: "MTH-101", title: "General Mathematics I" },
-            { code: "PHY-101", title: "Introductory Physics I" },
-            { code: "GNS-101", title: "Use of English" }
-          ]
-        },
-      ]);
+      if (editingStudentId) {
+        // Update existing student
+        const { error } = await supabase
+          .from("students")
+          .update({
+            name: formData.name,
+            email: formData.email.trim().toLowerCase(),
+            school_tier: formData.school_tier,
+            class_level: formData.class_level,
+            academic_session: formData.academic_session,
+            current_term: formData.current_term
+          })
+          .eq("id", editingStudentId);
 
-      if (error) throw error;
+        if (error) throw error;
+        alert("✨ Student profile updated successfully!");
+      } else {
+        // Insert new student
+        const generatedRegNo = `STU-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+        const { error } = await supabase.from("students").insert([
+          {
+            reg_number: generatedRegNo,
+            name: formData.name,
+            email: formData.email.trim().toLowerCase(),
+            school_tier: formData.school_tier,
+            class_level: formData.class_level,
+            academic_session: formData.academic_session,
+            current_term: formData.current_term,
+            courses: [
+              { code: "MTH-101", title: "General Mathematics I" },
+              { code: "PHY-101", title: "Introductory Physics I" },
+              { code: "GNS-101", title: "Use of English" }
+            ]
+          },
+        ]);
+
+        if (error) throw error;
+        alert("🎉 Student successfully onboarded!");
+      }
 
       setFormData({ 
         name: "", 
@@ -211,10 +267,11 @@ export default function AdminManageStudentsPage() {
         academic_session: "2026/2027",
         current_term: "term_1"
       });
+      setEditingStudentId(null);
       setIsModalOpen(false);
       fetchStudents();
     } catch (err) {
-      alert("Registration failed: " + err.message);
+      alert("Operation failed: " + err.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -358,20 +415,21 @@ export default function AdminManageStudentsPage() {
             <div className="p-12 text-center text-slate-400 text-xs font-medium">No students registered under this specific classroom selection stack.</div>
           ) : (
             <div className="overflow-x-auto w-full">
-              <table className="w-full text-left border-collapse min-w-[600px]">
+              <table className="w-full text-left border-collapse min-w-[700px]">
                 <thead>
                   <tr className="bg-slate-50/40 border-b border-slate-200 text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                    <th className="px-4 sm:px-6 py-4">Avatar Profile</th>
-                    <th className="px-4 sm:px-6 py-4">Reg Number</th>
-                    <th className="px-4 sm:px-6 py-4">Full Legal Name</th>
-                    <th className="px-4 sm:px-6 py-4">Session/Term Info</th>
-                    <th className="px-4 sm:px-6 py-4 text-center">Security Access PIN</th>
+                    <th className="px-4 py-4">Avatar Profile</th>
+                    <th className="px-4 py-4">Reg Number</th>
+                    <th className="px-4 py-4">Full Legal Name</th>
+                    <th className="px-4 py-4">Session/Term Info</th>
+                    <th className="px-4 py-4 text-center">Security PIN</th>
+                    <th className="px-4 py-4 text-center">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs text-slate-600 font-medium">
                   {filteredStudents.map((student) => (
                     <tr key={student.id} className="hover:bg-slate-50/40 transition-colors">
-                      <td className="px-4 sm:px-6 py-3">
+                      <td className="px-4 py-3">
                         <div className="h-10 w-10 rounded-xl border border-slate-200 bg-slate-100 overflow-hidden flex items-center justify-center flex-shrink-0">
                           {student.passport_url ? (
                             <img src={student.passport_url} alt="passport" className="h-full w-full object-cover" />
@@ -381,19 +439,19 @@ export default function AdminManageStudentsPage() {
                         </div>
                       </td>
 
-                      <td className="px-4 sm:px-6 py-4 font-mono font-bold text-blue-600 whitespace-nowrap">{student.reg_number}</td>
+                      <td className="px-4 py-4 font-mono font-bold text-blue-600 whitespace-nowrap">{student.reg_number}</td>
                       
-                      <td className="px-4 sm:px-6 py-4">
+                      <td className="px-4 py-4">
                         <div className="font-bold text-slate-800 text-sm break-words">{student.name}</div>
                         <div className="text-[10px] text-slate-400 font-mono mt-0.5 break-all">{student.email}</div>
                       </td>
                       
-                      <td className="px-4 sm:px-6 py-4 font-mono text-[11px] whitespace-nowrap">
+                      <td className="px-4 py-4 font-mono text-[11px] whitespace-nowrap">
                         <div className="text-slate-700 font-bold">{student.academic_session}</div>
                         <div className="text-indigo-600 text-[10px] font-bold uppercase tracking-wide mt-0.5">{student.current_term?.replace("_", " ")}</div>
                       </td>
 
-                      <td className="px-4 sm:px-6 py-4 text-center whitespace-nowrap">
+                      <td className="px-4 py-4 text-center whitespace-nowrap">
                         {student.result_pin ? (
                           <div className="inline-flex flex-col items-center space-y-1">
                             <span className="bg-indigo-50 border border-indigo-200 text-indigo-700 font-mono font-black text-sm px-3 py-1 rounded-lg tracking-widest shadow-inner">
@@ -411,6 +469,25 @@ export default function AdminManageStudentsPage() {
                           </button>
                         )}
                       </td>
+
+                      <td className="px-4 py-4 text-center whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditModal(student)}
+                            className="bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold text-[10px] px-2.5 py-1.5 rounded-lg transition-all border border-amber-200 cursor-pointer"
+                          >
+                            ✏️ Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteStudent(student.id)}
+                            className="bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10px] px-2.5 py-1.5 rounded-lg transition-all border border-rose-200 cursor-pointer"
+                          >
+                            🗑️ Delete
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -420,12 +497,14 @@ export default function AdminManageStudentsPage() {
         </div>
       </div>
 
-      {/* ONBOARD MODAL INTERFACE */}
+      {/* ONBOARD / EDIT MODAL INTERFACE */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150 my-auto">
             <div className="p-4 sm:p-6 border-b border-slate-100 flex justify-between items-center">
-              <h3 className="text-xs sm:text-sm font-black text-slate-800 uppercase tracking-tight">Onboard Pre-Account System</h3>
+              <h3 className="text-xs sm:text-sm font-black text-slate-800 uppercase tracking-tight">
+                {editingStudentId ? "Edit Student Profile" : "Onboard Pre-Account System"}
+              </h3>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-xl cursor-pointer">×</button>
             </div>
             
@@ -510,7 +589,9 @@ export default function AdminManageStudentsPage() {
 
               <div className="flex gap-4 pt-4 border-t border-slate-100 mt-6">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 bg-slate-100 text-slate-700 font-bold text-xs py-2.5 rounded-xl cursor-pointer">Cancel</button>
-                <button type="submit" disabled={isSubmitting} className="flex-1 bg-blue-600 text-white font-bold text-xs py-2.5 rounded-xl cursor-pointer shadow-md">{isSubmitting ? "Processing..." : "Generate Account"}</button>
+                <button type="submit" disabled={isSubmitting} className="flex-1 bg-blue-600 text-white font-bold text-xs py-2.5 rounded-xl cursor-pointer shadow-md">
+                  {isSubmitting ? "Processing..." : (editingStudentId ? "Save Changes" : "Generate Account")}
+                </button>
               </div>
             </form>
           </div>
