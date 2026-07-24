@@ -148,13 +148,16 @@ export default function CentralAuthGateway() {
         alert("🔒 Password configured and saved permanently for this account profile!");
       }
 
-      // Commit Active Role Session context to storage
+      // Commit Active Role Session context to storage and cookies (for middleware security verification)
       if (userRole === "student") {
         localStorage.setItem("active_student_email", cleanEmail);
+        document.cookie = `active_student_email=${cleanEmail}; path=/; max-age=86400; SameSite=Lax`;
       } else if (userRole === "teacher") {
         localStorage.setItem("active_teacher_email", cleanEmail);
+        document.cookie = `active_teacher_email=${cleanEmail}; path=/; max-age=86400; SameSite=Lax`;
       } else if (userRole === "admin") {
         localStorage.setItem("active_admin_email", cleanEmail);
+        document.cookie = `active_admin_email=${cleanEmail}; path=/; max-age=86400; SameSite=Lax`;
       }
 
       // Routing Node Resolver
