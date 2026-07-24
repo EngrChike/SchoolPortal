@@ -34,7 +34,6 @@ export default function CourseRegistrationPanel({
   async function fetchDatabaseMasterData() {
     setLoadingData(true);
     try {
-      // Fetch courses and teachers concurrently from Supabase tables
       const [coursesRes, teachersRes] = await Promise.all([
         supabase.from("courses").select("*"),
         supabase.from("teachers").select("*")
@@ -52,22 +51,17 @@ export default function CourseRegistrationPanel({
     }
   }
 
-  // Resolve teacher name matching course relation or fallback list
   function getAssignedTeacher(course) {
-    // Check if course record has a direct teacher name or teacher_id
     if (course.teacher_name) return course.teacher_name;
     if (course.assigned_teacher) return course.assigned_teacher;
     
-    // If there are teachers in the database, map them dynamically
     if (teachersList.length > 0) {
-      // Match by index or id if available, else pick one from your db list (Ola, Ndu, Ada, Mba, etc.)
       const hash = (course.code || course.id || "").toString().split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
       return teachersList[hash % teachersList.length].name;
     }
     return "Assigned Faculty";
   }
 
-  // Filter database courses strictly matching active class tier (e.g., JSS1, PRIMARY 1, etc.)
   const filteredAvailableCourses = databaseCourses.filter((course) => {
     const courseTier = (course.school_level_tier || course.tier || "JSS1").toUpperCase();
     const currentTier = selectedSchoolLevelTier.toUpperCase();
@@ -98,16 +92,13 @@ export default function CourseRegistrationPanel({
     setSubmittingRegistration(true);
 
     try {
+      // Only insert columns that exist in standard course_registrations schemas
       const rowsToInsert = selectedCourseIdsToRegister.map((courseId) => {
-        const matchedCourse = databaseCourses.find((c) => c.id === courseId || c.code === courseId);
-        const resolvedTeacher = getAssignedTeacher(matchedCourse || {});
-
         return {
           student_email: currentStudentEmail,
           course_id: courseId,
           school_term: selectedTermFolder,
-          school_level_tier: selectedSchoolLevelTier,
-          teacher_name: resolvedTeacher
+          school_level_tier: selectedSchoolLevelTier
         };
       });
 
@@ -122,7 +113,7 @@ export default function CourseRegistrationPanel({
       }
 
       setSelectedCourseIdsToRegister([]);
-      alert("✨ Selected courses successfully registered with database teacher tracking!");
+      alert("✨ Selected courses successfully registered!");
     } catch (err) {
       alert("Registration Error: " + err.message);
     } finally {
@@ -361,7 +352,10 @@ export default function CourseRegistrationPanel({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {currentFilteredRecords.map((record, index) => {
               const isEditing = editingRecordId === record.course_id;
-              const assignedTeacherName = record.teacher_name || "Assigned Faculty";
+              
+              // Match instructor name dynamically using database course details or fallback list
+              const matchedDbCourse = databaseCourses.find(c => c.id === record.course_id || c.code === record.course_id);
+              const assignedTeacherName = matchedDbCourse ? getAssignedTeacher(matchedDbCourse) : "Assigned Faculty";
 
               return (
                 <div key={index} className="p-4 rounded-xl border border-slate-200/80 bg-slate-50/40 flex flex-col gap-3">
@@ -370,7 +364,7 @@ export default function CourseRegistrationPanel({
                       <span className="text-[10px] font-mono font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md uppercase inline-block">
                         {record.courses?.code || record.course_id}
                       </span>
-                      <h4 className="text-sm font-black text-slate-800 mt-1 truncate">{record.courses?.name || record.courses?.title || "Course Unit"}</h4>
+                      <h4 className="text-sm font-black text-slate-800 mt-1 truncate">{record.courses?.name || record.courses?.title || matchedDbCourse?.title || "Course Unit"}</h4>
                       <p className="text-[11px] text-slate-500 mt-0.5 font-medium">
                         Instructor: <span className="font-bold text-slate-700">{assignedTeacherName}</span>
                       </p>
