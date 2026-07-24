@@ -51,15 +51,32 @@ export default function CourseRegistrationPanel({
     }
   }
 
-  function getAssignedTeacher(course) {
+  // Dynamically find the exact teacher assigned to this course code or specialization
+  function getAssignedTeacherForCourse(course) {
+    const courseCode = (course.code || "").trim().toUpperCase();
+    const courseId = (course.id || "").toString().trim();
+
+    // Search through teachers list for matching assigned_subjects array or subject_specialization
+    const matchedTeacher = teachersList.find((teacher) => {
+      const assignedSubjects = teacher.assigned_subjects || [];
+      const specialization = (teacher.subject_specialization || "").trim().toUpperCase();
+
+      const isInArray = assignedSubjects.some(
+        (sub) => sub.trim().toUpperCase() === courseCode || sub.trim() === courseId
+      );
+      const isSpecializationMatch = specialization === courseCode || specialization === courseId;
+
+      return isInArray || isSpecializationMatch;
+    });
+
+    if (matchedTeacher && matchedTeacher.name) {
+      return matchedTeacher.name;
+    }
+
     if (course.teacher_name) return course.teacher_name;
     if (course.assigned_teacher) return course.assigned_teacher;
-    
-    if (teachersList.length > 0) {
-      const hash = (course.code || course.id || "").toString().split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
-      return teachersList[hash % teachersList.length].name;
-    }
-    return "Assigned Faculty";
+
+    return "Unassigned Faculty";
   }
 
   const filteredAvailableCourses = databaseCourses.filter((course) => {
@@ -92,7 +109,6 @@ export default function CourseRegistrationPanel({
     setSubmittingRegistration(true);
 
     try {
-      // Only insert columns that exist in standard course_registrations schemas
       const rowsToInsert = selectedCourseIdsToRegister.map((courseId) => {
         return {
           student_email: currentStudentEmail,
@@ -276,7 +292,7 @@ export default function CourseRegistrationPanel({
                   const courseIdKey = course.id || course.code;
                   const isAlreadyRegistered = registeredCourseIds.includes(courseIdKey);
                   const isChecked = selectedCourseIdsToRegister.includes(courseIdKey);
-                  const assignedTeacher = getAssignedTeacher(course);
+                  const assignedTeacher = getAssignedTeacherForCourse(course);
 
                   return (
                     <div
@@ -353,9 +369,8 @@ export default function CourseRegistrationPanel({
             {currentFilteredRecords.map((record, index) => {
               const isEditing = editingRecordId === record.course_id;
               
-              // Match instructor name dynamically using database course details or fallback list
               const matchedDbCourse = databaseCourses.find(c => c.id === record.course_id || c.code === record.course_id);
-              const assignedTeacherName = matchedDbCourse ? getAssignedTeacher(matchedDbCourse) : "Assigned Faculty";
+              const assignedTeacherName = matchedDbCourse ? getAssignedTeacherForCourse(matchedDbCourse) : "Unassigned Faculty";
 
               return (
                 <div key={index} className="p-4 rounded-xl border border-slate-200/80 bg-slate-50/40 flex flex-col gap-3">
