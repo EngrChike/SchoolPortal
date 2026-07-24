@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "../../lib/supabaseClient";
 
 export default function CourseRegistrationPanel({
@@ -24,11 +24,38 @@ export default function CourseRegistrationPanel({
   const [selectedCourseIdsToRegister, setSelectedCourseIdsToRegister] = useState([]);
   const [submittingRegistration, setSubmittingRegistration] = useState(false);
 
+  // Dynamic database courses state (synced with admin teacher assignments)
+  const [dbCourses, setDbCourses] = useState(availableCourses);
+  const [loadingDbCourses, setLoadingDbCourses] = useState(false);
+
   // Edit State for registered records
   const [editingRecordId, setEditingRecordId] = useState(null);
   const [editTermValue, setEditTermValue] = useState("1st Term");
 
-  // Comprehensive curriculum definitions based on section/tier mapping
+  // Fetch latest courses and admin-assigned teachers from Supabase on mount
+  useEffect(() => {
+    async function fetchAdminAssignedCourses() {
+      setLoadingDbCourses(true);
+      try {
+        const { data, error } = await supabase
+          .from("courses")
+          .select("*");
+
+        if (error) throw error;
+        if (data && data.length > 0) {
+          setDbCourses(data);
+        }
+      } catch (err) {
+        console.error("Error fetching admin-assigned courses:", err.message);
+      } finally {
+        setLoadingDbCourses(false);
+      }
+    }
+
+    fetchAdminAssignedCourses();
+  }, []);
+
+  // Comprehensive curriculum definitions as fallback presets
   const primarySubjectsList = [
     { code: "ENG-PRI", title: "English Studies", school_level_tier: "PRIMARY 1", teacher_name: "Mrs. Adebayo" },
     { code: "MTH-PRI", title: "Mathematics", school_level_tier: "PRIMARY 1", teacher_name: "Mr. Okoro" },
@@ -62,10 +89,14 @@ export default function CourseRegistrationPanel({
     { code: "LIT-SEC", title: "Literature-in-English", school_level_tier: "SS1", teacher_name: "Mrs. Adebayo" }
   ];
 
-  // Merge database available courses with static preset lists if database list is sparse
-  const combinedMasterCourseList = [...primarySubjectsList, ...secondarySubjectsList, ...availableCourses];
+  // Merge database courses first (admin assigned) with static preset lists as fallbacks
+  const combinedMasterCourseList = [
+    ...(dbCourses.length > 0 ? dbCourses : availableCourses),
+    ...primarySubjectsList,
+    ...secondarySubjectsList
+  ];
 
-  // Filter available courses strictly matching the student's active class level/tier (e.g., JSS1 lists only JSS1 courses, Primary 1 lists Primary 1 courses)
+  // Filter available courses strictly matching the student's active class level/tier
   const filteredAvailableCourses = combinedMasterCourseList.filter(
     (course) => {
       const courseTier = (course.school_level_tier || "JSS1").toUpperCase();
@@ -73,7 +104,7 @@ export default function CourseRegistrationPanel({
       if (currentTier.includes("PRIMARY")) {
         return courseTier.includes("PRIMARY");
       }
-      return courseTier === currentTier || courseTier === "JSS1"; // Default fallbacks for general JSS subjects
+      return courseTier === currentTier || courseTier === "JSS1";
     }
   );
 
@@ -89,7 +120,7 @@ export default function CourseRegistrationPanel({
     );
   }
 
-  // Handle Multi-Select Registration Submission with Teacher Tracking
+  // Handle Multi-Select Registration Submission with Admin-Assigned Teacher Tracking
   async function handleBatchCourseRegistration(e) {
     e.preventDefault();
     if (!currentStudentEmail || selectedCourseIdsToRegister.length === 0) {
@@ -122,7 +153,7 @@ export default function CourseRegistrationPanel({
       }
 
       setSelectedCourseIdsToRegister([]);
-      alert("✨ Selected courses successfully registered with teacher tracking!");
+      alert("✨ Selected courses successfully registered with admin-assigned teachers!");
     } catch (err) {
       alert("Registration Error: " + err.message);
     } finally {
@@ -192,7 +223,7 @@ export default function CourseRegistrationPanel({
 
   return (
     <div className="space-y-6 sm:space-y-8 no-print-wrapper">
-      {/* School Level Tier Selector Navigation (Auto-synced with student bio class level) */}
+      {/* School Level Tier Selector Navigation */}
       <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
         <div>
           <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Active Student Class & Tier</h3>
@@ -261,13 +292,16 @@ export default function CourseRegistrationPanel({
           </button>
         </div>
 
-        {/* Efficient Course Selection Panel (Filtered by Class Level & Tracks Assigned Teacher) */}
+        {/* Efficient Course Selection Panel */}
         <div className="pt-2">
-          <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider mb-2">
-            Available Courses for {selectedSchoolLevelTier} [{selectedTermFolder}]
-          </h4>
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider">
+              Available Courses for {selectedSchoolLevelTier} [{selectedTermFolder}]
+            </h4>
+            {loadingDbCourses && <span className="text-[10px] text-indigo-600 font-bold animate-pulse">Syncing Admin Teachers...</span>}
+          </div>
           <p className="text-xs text-slate-400 mb-4">
-            Select the courses offered for your class level below. The assigned subject teacher is automatically tracked upon saving.
+            Select courses for your class. Teachers assigned by the admin from the dashboard are automatically applied.
           </p>
 
           {filteredAvailableCourses.length === 0 ? (
@@ -281,7 +315,7 @@ export default function CourseRegistrationPanel({
                   const courseIdKey = course.id || course.code;
                   const isAlreadyRegistered = registeredCourseIds.includes(courseIdKey);
                   const isChecked = selectedCourseIdsToRegister.includes(courseIdKey);
-                  const assignedTeacher = course.teacher_name || course.assigned_teacher || "Assigned Faculty";
+                  const assignedTeacher = course.teacher_name || course.assigned_teacher || course.teachers?.full_name || "Assigned Faculty";
 
                   return (
                     <div
@@ -316,7 +350,7 @@ export default function CourseRegistrationPanel({
                         <h5 className="text-xs font-black text-slate-800 mt-1 truncate">{course.title || course.name}</h5>
                         <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1 font-medium">
                           <span>Teacher Assigned:</span>
-                          <span className="font-bold text-slate-700">{assignedTeacher}</span>
+                          <span className="font-bold text-indigo-700">{assignedTeacher}</span>
                         </p>
                       </div>
                     </div>
@@ -340,7 +374,7 @@ export default function CourseRegistrationPanel({
         </div>
       </div>
 
-      {/* Registered Records Listing with Edit & Delete Controls & Teacher Tracking */}
+      {/* Registered Records Listing */}
       <div className="bg-white p-5 sm:p-6 md:p-8 rounded-3xl sm:rounded-[2rem] border border-slate-100 shadow-sm">
         <div className="mb-4">
           <h3 className="text-sm font-black text-slate-700 uppercase tracking-wider">
@@ -360,6 +394,7 @@ export default function CourseRegistrationPanel({
               const assignedTeacherName =
                 record.teacher_name ||
                 record.courses?.teacher_name ||
+                record.courses?.assigned_teacher ||
                 record.courses?.teacher?.full_name ||
                 "Assigned Faculty";
 
@@ -372,7 +407,7 @@ export default function CourseRegistrationPanel({
                       </span>
                       <h4 className="text-sm font-black text-slate-800 mt-1 truncate">{record.courses?.name || record.courses?.title || "Course Unit"}</h4>
                       <p className="text-[11px] text-slate-500 mt-0.5 font-medium">
-                        Teacher: <span className="font-bold text-slate-700">{assignedTeacherName}</span>
+                        Teacher: <span className="font-bold text-indigo-700">{assignedTeacherName}</span>
                       </p>
                     </div>
                     <div className="flex flex-col gap-1.5 items-end flex-shrink-0">
