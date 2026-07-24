@@ -8,7 +8,7 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
   const [teacherEmail, setTeacherEmail] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   
-  // Active classroom level (e.g., 'jss1', 'primary_1', 'primary_2')
+  // Active classroom level (e.g., 'JSS1', 'JSS2', 'PRIMARY_1')
   const [selectedClass, setSelectedClass] = useState(""); 
   
   // State Arrays for Lists
@@ -91,7 +91,10 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
     try {
       setCurrentCourseId(null); // Clear previous fallback context
       
+      const normalizedSelectedClass = (selectedClass || "").trim().toUpperCase();
+
       // --- PART 1: FETCH REGISTERED STUDENTS FOR THE SELECTED CLASS ---
+      // Fetch registrations and join students table safely
       const { data: registrationRecords, error: registrationErr } = await supabase
         .from("course_registrations")
         .select(`
@@ -101,20 +104,33 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
           mid_semester,
           final_exam,
           student_email,
-          students!inner(
+          school_level_tier,
+          students(
             id,
             name,
             email,
             class_level
           )
-        `)
-        .eq("students.class_level", selectedClass);
+        `);
 
       if (registrationErr) throw registrationErr;
+
+      // Filter locally to match class level or school tier flexibly, handling formatting variances
+      const filteredRegistrations = (registrationRecords || []).filter(reg => {
+        const studentClass = (reg.students?.class_level || "").trim().toUpperCase();
+        const regTier = (reg.school_level_tier || "").trim().toUpperCase();
+        
+        // Clean strings for exact comparative matching (removing spaces and underscores)
+        const cleanSelected = normalizedSelectedClass.replace(/[\s_]/g, "");
+        const cleanStudentClass = studentClass.replace(/[\s_]/g, "");
+        const cleanRegTier = regTier.replace(/[\s_]/g, "");
+
+        return cleanStudentClass === cleanSelected || cleanRegTier === cleanSelected;
+      });
       
       // Save the primary course ID context from the first matching registration record found
-      if (registrationRecords && registrationRecords.length > 0) {
-        const foundCourseId = registrationRecords.find(r => r.course_id)?.course_id;
+      if (filteredRegistrations && filteredRegistrations.length > 0) {
+        const foundCourseId = filteredRegistrations.find(r => r.course_id)?.course_id;
         if (foundCourseId) {
           setCurrentCourseId(foundCourseId);
         }
@@ -123,7 +139,7 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
       // DE-DUPLICATION STRATEGY: Use a Map keyed by the unique database entry or student composite
       const uniqueStudentsMap = new Map();
 
-      (registrationRecords || []).forEach((reg) => {
+      filteredRegistrations.forEach((reg) => {
         const lookupId = reg.students?.id || reg.id;
         if (!uniqueStudentsMap.has(lookupId)) {
           uniqueStudentsMap.set(lookupId, {
