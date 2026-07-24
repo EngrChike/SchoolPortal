@@ -6,7 +6,7 @@ import { supabase } from "../../lib/supabaseClient";
 export default function CourseRegistrationPanel({
   currentStudentEmail,
   studentSection,
-  studentClassLevel = "JSS1", // e.g., "JSS1", "JSS2", "JSS3", "Primary 1", etc.
+  studentClassLevel = "JSS1",
   availableCourses = [],
   registeredCourseIds,
   performanceRecords,
@@ -14,48 +14,59 @@ export default function CourseRegistrationPanel({
   isJss3ToSs1Transitioned,
   refreshRegistrations,
 }) {
-  // Initialize school tier state strictly matching the student's actual current class level
   const [selectedSchoolLevelTier, setSelectedSchoolLevelTier] = useState(
     studentClassLevel ? studentClassLevel.toUpperCase() : "JSS1"
   );
   const [selectedTermFolder, setSelectedTermFolder] = useState("1st Term");
 
-  // Selection state for available courses to register
   const [selectedCourseIdsToRegister, setSelectedCourseIdsToRegister] = useState([]);
   const [submittingRegistration, setSubmittingRegistration] = useState(false);
 
-  // Dynamic database courses state (synced with admin teacher assignments)
-  const [dbCourses, setDbCourses] = useState(availableCourses);
-  const [loadingDbCourses, setLoadingDbCourses] = useState(false);
-
-  // Edit State for registered records
   const [editingRecordId, setEditingRecordId] = useState(null);
   const [editTermValue, setEditTermValue] = useState("1st Term");
 
-  // Fetch latest courses and admin-assigned teachers from Supabase on mount
+  // Dynamic teachers fetched from Supabase
+  const [teachersList, setTeachersList] = useState([]);
+
   useEffect(() => {
-    async function fetchAdminAssignedCourses() {
-      setLoadingDbCourses(true);
-      try {
-        const { data, error } = await supabase
-          .from("courses")
-          .select("*");
-
-        if (error) throw error;
-        if (data && data.length > 0) {
-          setDbCourses(data);
-        }
-      } catch (err) {
-        console.error("Error fetching admin-assigned courses:", err.message);
-      } finally {
-        setLoadingDbCourses(false);
-      }
-    }
-
-    fetchAdminAssignedCourses();
+    fetchTeachers();
   }, []);
 
-  // Comprehensive curriculum definitions as fallback presets
+  async function fetchTeachers() {
+    try {
+      const { data, error } = await supabase.from("teachers").select("*");
+      if (error) throw error;
+      if (data) {
+        setTeachersList(data);
+      }
+    } catch (err) {
+      console.error("Error fetching teachers:", err.message);
+    }
+  }
+
+  // Helper to assign teachers dynamically if not hardcoded in the course list
+  function getAssignedTeacherForCourse(courseCode, defaultTeacher) {
+    if (defaultTeacher && defaultTeacher !== "Not Assigned" && defaultTeacher !== "Assigned Faculty") {
+      return defaultTeacher;
+    }
+    // Fallback rotation or assignment from fetched teachers table
+    if (teachersList.length > 0) {
+      // Simple logic mapping course code length or index to available teachers (Ola, Ndu, Ada, etc.)
+      const index = Math.abs(hashCode(courseCode)) % teachersList.length;
+      return teachersList[index].name;
+    }
+    return defaultTeacher || "Assigned Faculty";
+  }
+
+  function hashCode(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = (hash << 5) - hash + str.charCodeAt(i);
+      hash |= 0;
+    }
+    return hash;
+  }
+
   const primarySubjectsList = [
     { code: "ENG-PRI", title: "English Studies", school_level_tier: "PRIMARY 1", teacher_name: "Mrs. Adebayo" },
     { code: "MTH-PRI", title: "Mathematics", school_level_tier: "PRIMARY 1", teacher_name: "Mr. Okoro" },
@@ -78,7 +89,6 @@ export default function CourseRegistrationPanel({
     { code: "AGR-SEC", title: "Agricultural Science", school_level_tier: "JSS1", teacher_name: "Mr. Eze" },
     { code: "CMP-SEC", title: "Computer Studies / ICT", school_level_tier: "JSS1", teacher_name: "Engr. Chike" },
     
-    // JSS2 / JSS3 / SS extensions
     { code: "BIO-SEC", title: "Biology", school_level_tier: "JSS2", teacher_name: "Dr. Danjuma" },
     { code: "CHM-SEC", title: "Chemistry", school_level_tier: "SS1", teacher_name: "Mr. Smith" },
     { code: "PHY-SEC", title: "Physics", school_level_tier: "SS1", teacher_name: "Prof. Albert" },
@@ -89,14 +99,8 @@ export default function CourseRegistrationPanel({
     { code: "LIT-SEC", title: "Literature-in-English", school_level_tier: "SS1", teacher_name: "Mrs. Adebayo" }
   ];
 
-  // Merge database courses first (admin assigned) with static preset lists as fallbacks
-  const combinedMasterCourseList = [
-    ...(dbCourses.length > 0 ? dbCourses : availableCourses),
-    ...primarySubjectsList,
-    ...secondarySubjectsList
-  ];
+  const combinedMasterCourseList = [...primarySubjectsList, ...secondarySubjectsList, ...availableCourses];
 
-  // Filter available courses strictly matching the student's active class level/tier
   const filteredAvailableCourses = combinedMasterCourseList.filter(
     (course) => {
       const courseTier = (course.school_level_tier || "JSS1").toUpperCase();
@@ -108,7 +112,6 @@ export default function CourseRegistrationPanel({
     }
   );
 
-  // Filter records matching current selected tier and term folder for inspection
   const currentFilteredRecords = performanceRecords.filter(
     (r) => (r.school_level_tier || "JSS1").toUpperCase() === selectedSchoolLevelTier.toUpperCase() && r.school_term === selectedTermFolder
   );
@@ -120,7 +123,6 @@ export default function CourseRegistrationPanel({
     );
   }
 
-  // Handle Multi-Select Registration Submission with Admin-Assigned Teacher Tracking
   async function handleBatchCourseRegistration(e) {
     e.preventDefault();
     if (!currentStudentEmail || selectedCourseIdsToRegister.length === 0) {
@@ -133,12 +135,15 @@ export default function CourseRegistrationPanel({
     try {
       const rowsToInsert = selectedCourseIdsToRegister.map((courseId) => {
         const matchedCourse = combinedMasterCourseList.find((c) => c.id === courseId || c.code === courseId);
+        const baseTeacher = matchedCourse?.teacher_name || matchedCourse?.assigned_teacher;
+        const resolvedTeacher = getAssignedTeacherForCourse(matchedCourse?.code || courseId, baseTeacher);
+
         return {
           student_email: currentStudentEmail,
           course_id: courseId,
           school_term: selectedTermFolder,
           school_level_tier: selectedSchoolLevelTier,
-          teacher_name: matchedCourse?.teacher_name || matchedCourse?.assigned_teacher || "Not Assigned"
+          teacher_name: resolvedTeacher
         };
       });
 
@@ -153,7 +158,7 @@ export default function CourseRegistrationPanel({
       }
 
       setSelectedCourseIdsToRegister([]);
-      alert("✨ Selected courses successfully registered with admin-assigned teachers!");
+      alert("✨ Selected courses successfully registered with live database teacher tracking!");
     } catch (err) {
       alert("Registration Error: " + err.message);
     } finally {
@@ -223,7 +228,6 @@ export default function CourseRegistrationPanel({
 
   return (
     <div className="space-y-6 sm:space-y-8 no-print-wrapper">
-      {/* School Level Tier Selector Navigation */}
       <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
         <div>
           <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Active Student Class & Tier</h3>
@@ -248,7 +252,6 @@ export default function CourseRegistrationPanel({
         </div>
       </div>
 
-      {/* Term Folders & Actions */}
       <div className="bg-white p-5 sm:p-6 md:p-8 rounded-3xl sm:rounded-[2rem] border border-slate-100 shadow-sm space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-100">
           <div>
@@ -275,7 +278,6 @@ export default function CourseRegistrationPanel({
           </div>
         </div>
 
-        {/* Clear Term Storage Option */}
         <div className="flex items-center justify-between p-4 bg-amber-50/60 border border-amber-200/60 rounded-2xl">
           <div>
             <h4 className="text-xs font-bold text-amber-900 uppercase">Term Batch Management</h4>
@@ -292,16 +294,12 @@ export default function CourseRegistrationPanel({
           </button>
         </div>
 
-        {/* Efficient Course Selection Panel */}
         <div className="pt-2">
-          <div className="flex items-center justify-between mb-2">
-            <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider">
-              Available Courses for {selectedSchoolLevelTier} [{selectedTermFolder}]
-            </h4>
-            {loadingDbCourses && <span className="text-[10px] text-indigo-600 font-bold animate-pulse">Syncing Admin Teachers...</span>}
-          </div>
+          <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider mb-2">
+            Available Courses for {selectedSchoolLevelTier} [{selectedTermFolder}]
+          </h4>
           <p className="text-xs text-slate-400 mb-4">
-            Select courses for your class. Teachers assigned by the admin from the dashboard are automatically applied.
+            Select courses below. Instructors from your database (<span className="font-semibold text-slate-600">Ola, Ndu, Ada, Mba, etc.</span>) are automatically assigned.
           </p>
 
           {filteredAvailableCourses.length === 0 ? (
@@ -315,7 +313,7 @@ export default function CourseRegistrationPanel({
                   const courseIdKey = course.id || course.code;
                   const isAlreadyRegistered = registeredCourseIds.includes(courseIdKey);
                   const isChecked = selectedCourseIdsToRegister.includes(courseIdKey);
-                  const assignedTeacher = course.teacher_name || course.assigned_teacher || course.teachers?.full_name || "Assigned Faculty";
+                  const assignedTeacher = getAssignedTeacherForCourse(course.code, course.teacher_name || course.assigned_teacher);
 
                   return (
                     <div
@@ -349,8 +347,8 @@ export default function CourseRegistrationPanel({
                         </div>
                         <h5 className="text-xs font-black text-slate-800 mt-1 truncate">{course.title || course.name}</h5>
                         <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1 font-medium">
-                          <span>Teacher Assigned:</span>
-                          <span className="font-bold text-indigo-700">{assignedTeacher}</span>
+                          <span>Assigned Teacher:</span>
+                          <span className="font-bold text-slate-700">{assignedTeacher}</span>
                         </p>
                       </div>
                     </div>
@@ -374,7 +372,6 @@ export default function CourseRegistrationPanel({
         </div>
       </div>
 
-      {/* Registered Records Listing */}
       <div className="bg-white p-5 sm:p-6 md:p-8 rounded-3xl sm:rounded-[2rem] border border-slate-100 shadow-sm">
         <div className="mb-4">
           <h3 className="text-sm font-black text-slate-700 uppercase tracking-wider">
@@ -393,9 +390,7 @@ export default function CourseRegistrationPanel({
               const isEditing = editingRecordId === record.course_id;
               const assignedTeacherName =
                 record.teacher_name ||
-                record.courses?.teacher_name ||
-                record.courses?.assigned_teacher ||
-                record.courses?.teacher?.full_name ||
+                getAssignedTeacherForCourse(record.course_id, record.courses?.teacher_name) ||
                 "Assigned Faculty";
 
               return (
@@ -407,7 +402,7 @@ export default function CourseRegistrationPanel({
                       </span>
                       <h4 className="text-sm font-black text-slate-800 mt-1 truncate">{record.courses?.name || record.courses?.title || "Course Unit"}</h4>
                       <p className="text-[11px] text-slate-500 mt-0.5 font-medium">
-                        Teacher: <span className="font-bold text-indigo-700">{assignedTeacherName}</span>
+                        Teacher: <span className="font-bold text-slate-700">{assignedTeacherName}</span>
                       </p>
                     </div>
                     <div className="flex flex-col gap-1.5 items-end flex-shrink-0">
@@ -441,7 +436,6 @@ export default function CourseRegistrationPanel({
                     </div>
                   </div>
 
-                  {/* Inline Edit Form Options */}
                   {isEditing && (
                     <div className="flex items-center gap-2 pt-2 border-t border-slate-200/50">
                       <span className="text-[11px] text-slate-400 font-bold">New Term:</span>
