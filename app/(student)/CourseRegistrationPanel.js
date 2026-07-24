@@ -7,8 +7,8 @@ export default function CourseRegistrationPanel({
   currentStudentEmail,
   studentSection,
   studentClassLevel = "JSS1",
-  registeredCourseIds,
-  performanceRecords,
+  registeredCourseIds = [],
+  performanceRecords = [],
   refreshRegistrations,
 }) {
   const [selectedSchoolLevelTier, setSelectedSchoolLevelTier] = useState(
@@ -56,7 +56,6 @@ export default function CourseRegistrationPanel({
     const courseCode = (course.code || "").trim().toUpperCase();
     const courseId = (course.id || "").toString().trim();
 
-    // Search through teachers list for matching assigned_subjects array or subject_specialization
     const matchedTeacher = teachersList.find((teacher) => {
       const assignedSubjects = teacher.assigned_subjects || [];
       const specialization = (teacher.subject_specialization || "").trim().toUpperCase();
@@ -92,10 +91,10 @@ export default function CourseRegistrationPanel({
     (r) => (r.school_level_tier || "JSS1").toUpperCase() === selectedSchoolLevelTier.toUpperCase() && r.school_term === selectedTermFolder
   );
 
-  function handleCheckboxToggle(courseId) {
-    if (registeredCourseIds.includes(courseId)) return;
+  function handleCheckboxToggle(courseIdKey) {
+    if (registeredCourseIds.includes(courseIdKey)) return;
     setSelectedCourseIdsToRegister((prev) =>
-      prev.includes(courseId) ? prev.filter((id) => id !== courseId) : [...prev, courseId]
+      prev.includes(courseIdKey) ? prev.filter((id) => id !== courseIdKey) : [...prev, courseIdKey]
     );
   }
 
@@ -198,7 +197,7 @@ export default function CourseRegistrationPanel({
   }
 
   return (
-    <div className="space-y-6 sm:space-y-8 no-print-wrapper">
+    <div className="space-y-6 sm:space-y-8 no-print-wrapper font-sans">
       {/* School Level Tier Selector */}
       <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
         <div>
@@ -289,14 +288,21 @@ export default function CourseRegistrationPanel({
             <form onSubmit={handleBatchCourseRegistration} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-80 overflow-y-auto p-1">
                 {filteredAvailableCourses.map((course) => {
-                  const courseIdKey = course.id || course.code;
-                  const isAlreadyRegistered = registeredCourseIds.includes(courseIdKey);
+                  const courseIdKey = course.id;
+                  const courseCodeKey = course.code;
+                  
+                  // Check against both ID and Code to prevent matching bugs
+                  const isAlreadyRegistered = 
+                    registeredCourseIds.includes(courseIdKey) || 
+                    registeredCourseIds.includes(courseCodeKey) ||
+                    currentFilteredRecords.some(r => r.course_id === courseIdKey || r.course_id === courseCodeKey);
+
                   const isChecked = selectedCourseIdsToRegister.includes(courseIdKey);
                   const assignedTeacher = getAssignedTeacherForCourse(course);
 
                   return (
                     <div
-                      key={courseIdKey}
+                      key={courseIdKey || courseCodeKey}
                       onClick={() => !isAlreadyRegistered && handleCheckboxToggle(courseIdKey)}
                       className={`p-3.5 rounded-2xl border transition-all flex items-start gap-3 ${
                         isAlreadyRegistered
@@ -377,9 +383,11 @@ export default function CourseRegistrationPanel({
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <span className="text-[10px] font-mono font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md uppercase inline-block">
-                        {record.courses?.code || record.course_id}
+                        {record.courses?.code || matchedDbCourse?.code || record.course_id}
                       </span>
-                      <h4 className="text-sm font-black text-slate-800 mt-1 truncate">{record.courses?.name || record.courses?.title || matchedDbCourse?.title || "Course Unit"}</h4>
+                      <h4 className="text-sm font-black text-slate-800 mt-1 truncate">
+                        {record.courses?.name || record.courses?.title || matchedDbCourse?.title || matchedDbCourse?.name || "Course Unit"}
+                      </h4>
                       <p className="text-[11px] text-slate-500 mt-0.5 font-medium">
                         Instructor: <span className="font-bold text-slate-700">{assignedTeacherName}</span>
                       </p>

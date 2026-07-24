@@ -40,7 +40,6 @@ export default function ManageTeachersPage() {
     { code: "GAR-PRI", title: "Agricultural Science" }
   ];
 
-  // Combined secondary and junior/senior subjects list spanning JSS1 through SS3
   const secondarySubjectsList = [
     { code: "MTH-SEC", title: "Mathematics (JSS - SS)" },
     { code: "ENG-SEC", title: "English Language (JSS - SS)" },
@@ -60,7 +59,6 @@ export default function ManageTeachersPage() {
     { code: "SST-SEC", title: "Social Studies / Civics (JSS)" }
   ];
 
-  // 1. Fetch Teachers from Supabase
   async function fetchTeachers() {
     try {
       setIsLoading(true);
@@ -82,7 +80,6 @@ export default function ManageTeachersPage() {
     fetchTeachers();
   }, []);
 
-  // Toggle dynamic class selections in form state array
   const handleClassCheckboxChange = (classLevel) => {
     const currentSelection = [...formData.assigned_classes];
     if (currentSelection.includes(classLevel)) {
@@ -98,7 +95,6 @@ export default function ManageTeachersPage() {
     }
   };
 
-  // Toggle dynamic subject selections in form state array
   const handleSubjectCheckboxChange = (subjectCode) => {
     const currentSelection = [...formData.assigned_subjects];
     if (currentSelection.includes(subjectCode)) {
@@ -114,7 +110,6 @@ export default function ManageTeachersPage() {
     }
   };
 
-  // Reset arrays when changing major tracks to demarcate tracks
   const handleTierChange = (tier) => {
     setFormData({
       ...formData,
@@ -124,7 +119,6 @@ export default function ManageTeachersPage() {
     });
   };
 
-  // Open modal for creating a new teacher record
   const handleOpenCreateModal = () => {
     setEditingTeacherId(null);
     setFormData({
@@ -132,14 +126,13 @@ export default function ManageTeachersPage() {
       email: "",
       phone: "",
       status: "Active",
-      school_tier: activeTab, // Defaults to whatever tab view admin is currently viewing
+      school_tier: activeTab,
       assigned_classes: [],
       assigned_subjects: []
     });
     setIsModalOpen(true);
   };
 
-  // Open modal for updating an existing teacher record
   const handleOpenEditModal = (teacher) => {
     setEditingTeacherId(teacher.id);
     setFormData({
@@ -154,7 +147,6 @@ export default function ManageTeachersPage() {
     setIsModalOpen(true);
   };
 
-  // 2. Handle Form Submission (Create or Update)
   async function handleSubmit(e) {
     e.preventDefault();
     setIsSubmitting(true);
@@ -177,7 +169,7 @@ export default function ManageTeachersPage() {
         phone: formData.phone.trim(),
         status: formData.status,
         school_tier: formData.school_tier,
-        subject_specialization: formData.assigned_subjects.length > 0 ? formData.assigned_subjects[0] : "", // fallback sync
+        subject_specialization: formData.assigned_subjects.length > 0 ? formData.assigned_subjects[0] : "", 
         assigned_classes: strictAssignedClasses,
         assigned_subjects: strictAssignedSubjects,
       };
@@ -213,7 +205,6 @@ export default function ManageTeachersPage() {
     }
   }
 
-  // 3. Handle Record Deletion
   async function handleDelete(id) {
     if (!confirm("Are you sure you want to remove this instructor from the portal?")) return;
 
@@ -231,19 +222,16 @@ export default function ManageTeachersPage() {
     }
   }
 
-  // Helper mapper to show subject title from code in table view
   const getSubjectTitle = (code, tier) => {
     const list = tier === "primary" ? primarySubjectsList : secondarySubjectsList;
     const found = list.find(s => s.code === code);
     return found ? found.title : code;
   };
 
-  // Filter teachers explicitly by selected tier tab view
   const filteredTeachers = teachers.filter(t => t.school_tier === activeTab);
 
   return (
     <div className="space-y-4 sm:space-y-6 max-w-7xl mx-auto p-2 sm:p-4 w-full overflow-x-hidden font-sans">
-      {/* Upper Control Strip */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight">Faculty Roster & Tracking</h1>
@@ -257,7 +245,6 @@ export default function ManageTeachersPage() {
         </button>
       </div>
 
-      {/* Tier Switcher Tabs for Easy Tracking */}
       <div className="flex border-b border-slate-200 gap-4 px-2">
         <button
           onClick={() => setActiveTab("secondary")}
@@ -287,7 +274,6 @@ export default function ManageTeachersPage() {
         </button>
       </div>
 
-      {/* Main Roster Panel Layout */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden w-full">
         {isLoading ? (
           <div className="p-12 text-center text-slate-500 font-medium text-xs sm:text-sm animate-pulse">
@@ -381,7 +367,6 @@ export default function ManageTeachersPage() {
         )}
       </div>
 
-      {/* Dynamic Assignment Input Modal Form */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-xl w-full my-auto overflow-hidden animate-in fade-in zoom-in-95 duration-150">
@@ -455,7 +440,6 @@ export default function ManageTeachersPage() {
                 </select>
               </div>
 
-              {/* Dynamic Checkboxes Container Workspace Matrix for Classes */}
               <div className="p-4 rounded-xl border border-slate-100 bg-slate-50/60">
                 <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 tracking-wider">
                   Check Class Assignment Allocations ({formData.school_tier.toUpperCase()})
@@ -475,7 +459,6 @@ export default function ManageTeachersPage() {
                 </div>
               </div>
 
-              {/* Dynamic Checkboxes Container Workspace Matrix for Subjects */}
               <div className="p-4 rounded-xl border border-slate-100 bg-slate-50/60">
                 <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 tracking-wider">
                   Assign Course Subjects ({formData.school_tier.toUpperCase()})
