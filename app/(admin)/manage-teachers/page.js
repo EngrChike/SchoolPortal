@@ -163,18 +163,13 @@ export default function ManageTeachersPage() {
         validSubjectCodes.includes(subj)
       );
 
-      // Determine clean string values for readable subject specialization matching
-      const primarySubjectTitle = strictAssignedSubjects.length > 0 
-        ? getSubjectTitle(strictAssignedSubjects[0], formData.school_tier) 
-        : "";
-
+      // Clean payload matching exact Supabase 'teachers' table columns (removed non-existent 'subject' column)
       const payload = {
         name: formData.name.trim(),
         email: formData.email.trim().toLowerCase(),
         phone: formData.phone.trim(),
         status: formData.status,
         school_tier: formData.school_tier,
-        subject: primarySubjectTitle, // Syncs cleanly with Teacher portal header checks
         subject_specialization: strictAssignedSubjects.length > 0 ? strictAssignedSubjects[0] : "", 
         assigned_classes: strictAssignedClasses,
         assigned_subjects: strictAssignedSubjects,

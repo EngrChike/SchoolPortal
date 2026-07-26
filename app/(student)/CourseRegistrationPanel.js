@@ -21,9 +21,39 @@ export default function CourseRegistrationPanel({
   const [autoRegistering, setAutoRegistering] = useState(false);
 
   // Database State
-  const [databaseCourses, setDatabaseCourses] = useState([]);
   const [teachersList, setTeachersList] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
+
+  // Master Subject Title Dictionary for code-to-title translation
+  const subjectTitleMap = {
+    // Primary
+    "ENG-PRI": "English Studies",
+    "MTH-PRI": "Mathematics",
+    "BST-PRI": "Basic Science and Technology",
+    "PHE-PRI": "Physical and Health Education",
+    "CCA-PRI": "Cultural and Creative Arts",
+    "CRS-PRI": "Christian Religious Studies",
+    "IRS-PRI": "Islamic Religious Studies",
+    "SOS-PRI": "Social Studies",
+    "GAR-PRI": "Agricultural Science",
+    // Secondary / General
+    "MTH-SEC": "Mathematics (JSS - SS)",
+    "ENG-SEC": "English Language (JSS - SS)",
+    "BIO-SEC": "Biology (JSS Basic Science / SS Bio)",
+    "CHM-SEC": "Chemistry",
+    "PHY-SEC": "Physics",
+    "ECO-SEC": "Economics",
+    "GOV-SEC": "Government",
+    "CRS-SEC": "Christian Religious Studies",
+    "AGR-SEC": "Agricultural Science",
+    "ACC-SEC": "Financial Accounting",
+    "GEO-SEC": "Geography",
+    "LIT-SEC": "Literature-in-English",
+    "CMP-SEC": "Computer Studies / ICT",
+    "BUS-SEC": "Business Studies (JSS)",
+    "BAS-SEC": "Basic Science (JSS)",
+    "SST-SEC": "Social Studies / Civics (JSS)"
+  };
 
   useEffect(() => {
     fetchDatabaseMasterData();
@@ -39,72 +69,83 @@ export default function CourseRegistrationPanel({
   async function fetchDatabaseMasterData() {
     setLoadingData(true);
     try {
-      const [coursesRes, teachersRes] = await Promise.all([
-        supabase.from("courses").select("*"),
-        supabase.from("teachers").select("*")
-      ]);
+      const { data: teachersRes, error: teachersErr } = await supabase
+        .from("teachers")
+        .select("*");
 
-      if (coursesRes.error) throw coursesRes.error;
-      if (teachersRes.error) throw teachersRes.error;
-
-      if (coursesRes.data) setDatabaseCourses(coursesRes.data);
-      if (teachersRes.data) setTeachersList(teachersRes.data);
+      if (teachersErr) throw teachersErr;
+      if (teachersRes) setTeachersList(teachersRes);
     } catch (err) {
-      console.error("Error loading master data from Supabase:", err.message);
+      console.error("Error loading teachers master data from Supabase:", err.message);
     } finally {
       setLoadingData(false);
     }
   }
 
-  // Dynamically map assigned teacher using trimmed and normalized matching
-  function getAssignedTeacherForCourse(course) {
-    const courseCode = (course.code || "").trim().toUpperCase();
-    const courseId = (course.id || "").toString().trim();
+  // Derive unique courses dynamically from teachers matching the selected tier
+  const derivedAvailableCourses = [];
+  const seenCourseCodes = new Set();
 
-    const matchedTeacher = teachersList.find((teacher) => {
-      const assignedSubjects = teacher.assigned_subjects || [];
-      const specialization = (teacher.subject_specialization || "").trim().toUpperCase();
+  const activeTierKey = selectedSchoolLevelTier.toLowerCase().includes("primary") ? "primary" : "secondary";
 
-      const isInArray = assignedSubjects.some(
-        (sub) => sub.trim().toUpperCase() === courseCode || sub.trim() === courseId
-      );
-      const isSpecializationMatch = specialization === courseCode || specialization === courseId;
+  teachersList.forEach((teacher) => {
+    // Only look at teachers matching the school tier track (or general/all)
+    const teacherTier = (teacher.school_tier || "secondary").toLowerCase();
+    if (teacherTier === activeTierKey) {
+      const subjects = teacher.assigned_subjects || [];
+      subjects.forEach((code) => {
+        const cleanCode = code.trim().toUpperCase();
+        if (cleanCode && !seenCourseCodes.has(cleanCode)) {
+          seenCourseCodes.add(cleanCode);
+          derivedAvailableCourses.push({
+            id: cleanCode,
+            code: cleanCode,
+            title: subjectTitleMap[cleanCode] || cleanCode,
+            teacher_name: teacher.name || "Assigned Faculty"
+          });
+        }
+      });
 
-      return isInArray || isSpecializationMatch;
-    });
-
-    if (matchedTeacher && matchedTeacher.name) {
-      return matchedTeacher.name;
+      // Also account for legacy/single specialization field if present
+      const spec = (teacher.subject_specialization || "").trim().toUpperCase();
+      if (spec && !seenCourseCodes.has(spec)) {
+        seenCourseCodes.add(spec);
+        derivedAvailableCourses.push({
+          id: spec,
+          code: spec,
+          title: subjectTitleMap[spec] || spec,
+          teacher_name: teacher.name || "Assigned Faculty"
+        });
+      }
     }
-
-    if (course.teacher_name) return course.teacher_name;
-    if (course.assigned_teacher) return course.assigned_teacher;
-
-    return "Unassigned Faculty";
-  }
-
-  // Filter available courses strictly by the active tier
-  const filteredAvailableCourses = databaseCourses.filter((course) => {
-    const courseTier = (course.school_level_tier || course.tier || "JSS1").toUpperCase();
-    const currentTier = selectedSchoolLevelTier.toUpperCase();
-    if (currentTier.includes("PRIMARY")) {
-      return courseTier.includes("PRIMARY");
-    }
-    return courseTier === currentTier || courseTier === "JSS1";
   });
 
-  // Automatically execute backend registration for all filtered tier courses when data changes
+  // Dynamically map assigned teacher for a specific course code from the teacher roster
+  function getAssignedTeacherForCourseCode(courseCode) {
+    const target = (courseCode || "").trim().toUpperCase();
+    const matched = teachersList.find((teacher) => {
+      const assigned = teacher.assigned_subjects || [];
+      const spec = (teacher.subject_specialization || "").trim().toUpperCase();
+      return (
+        assigned.some((s) => s.trim().toUpperCase() === target) ||
+        spec === target
+      );
+    });
+    return matched ? matched.name : "Unassigned Faculty";
+  }
+
+  // Automatically execute backend registration for all derived tier courses when data changes
   useEffect(() => {
-    if (!loadingData && currentStudentEmail && filteredAvailableCourses.length > 0) {
+    if (!loadingData && currentStudentEmail && derivedAvailableCourses.length > 0) {
       syncAutomaticRegistrations();
     }
-  }, [loadingData, selectedSchoolLevelTier, selectedTermFolder, databaseCourses]);
+  }, [loadingData, selectedSchoolLevelTier, selectedTermFolder, teachersList]);
 
   async function syncAutomaticRegistrations() {
-    if (!currentStudentEmail || filteredAvailableCourses.length === 0) return;
+    if (!currentStudentEmail || derivedAvailableCourses.length === 0) return;
     setAutoRegistering(true);
     try {
-      const rowsToInsert = filteredAvailableCourses.map((course) => ({
+      const rowsToInsert = derivedAvailableCourses.map((course) => ({
         student_email: currentStudentEmail,
         course_id: course.id,
         school_term: selectedTermFolder,
@@ -268,35 +309,36 @@ export default function CourseRegistrationPanel({
               Assigned Courses & Instructors for {selectedSchoolLevelTier} ({selectedTermFolder})
             </h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              {autoRegistering ? "Synchronizing automated curriculum..." : "All curriculum courses assigned to your class level are listed below."}
+              {autoRegistering ? "Synchronizing automated curriculum..." : "All curriculum courses assigned to your class level via teachers table are listed below."}
             </p>
           </div>
         </div>
 
         {loadingData ? (
           <p className="text-sm font-medium text-slate-400 text-center py-6 bg-slate-50 rounded-2xl border border-slate-200">
-            Loading course curriculum from database...
+            Loading course curriculum from teacher assignments...
           </p>
         ) : currentFilteredRecords.length === 0 ? (
           <p className="text-sm font-medium text-slate-400 text-center py-6 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-            No courses mapped under {selectedSchoolLevelTier} - {selectedTermFolder}. Please check your database 'courses' table.
+            No courses mapped under {selectedSchoolLevelTier} - {selectedTermFolder}. Please check your 'teachers' assigned subjects configuration.
           </p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {currentFilteredRecords.map((record, index) => {
               const isEditing = editingRecordId === record.course_id;
-              const matchedDbCourse = databaseCourses.find(c => c.id === record.course_id || c.code === record.course_id);
-              const assignedTeacherName = matchedDbCourse ? getAssignedTeacherForCourse(matchedDbCourse) : "Unassigned Faculty";
+              const courseCode = record.course_id;
+              const courseTitle = subjectTitleMap[courseCode] || record.courses?.title || record.courses?.name || courseCode;
+              const assignedTeacherName = getAssignedTeacherForCourseCode(courseCode);
 
               return (
                 <div key={index} className="p-4 rounded-xl border border-slate-200/80 bg-slate-50/40 flex flex-col gap-3">
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <span className="text-[10px] font-mono font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md uppercase inline-block">
-                        {record.courses?.code || matchedDbCourse?.code || record.course_id}
+                        {courseCode}
                       </span>
                       <h4 className="text-sm font-black text-slate-800 mt-1 truncate">
-                        {record.courses?.name || record.courses?.title || matchedDbCourse?.title || matchedDbCourse?.name || "Course Unit"}
+                        {courseTitle}
                       </h4>
                       <p className="text-[11px] text-slate-500 mt-0.5 font-medium">
                         Instructor: <span className="font-bold text-slate-700">{assignedTeacherName}</span>
