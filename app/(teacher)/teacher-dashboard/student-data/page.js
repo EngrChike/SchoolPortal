@@ -94,7 +94,7 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
       const normalizedSelectedClass = (selectedClass || "").trim().toUpperCase();
 
       // --- PART 1: FETCH REGISTERED STUDENTS FOR THE SELECTED CLASS ---
-      // Fetch registrations and join students table safely
+      // Fetch registrations and join students table safely with explicit courses relation join
       const { data: registrationRecords, error: registrationErr } = await supabase
         .from("course_registrations")
         .select(`
@@ -105,6 +105,12 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
           final_exam,
           student_email,
           school_level_tier,
+          courses (
+            id,
+            code,
+            title,
+            name
+          ),
           students(
             id,
             name,

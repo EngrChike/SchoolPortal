@@ -51,7 +51,7 @@ export default function CourseRegistrationPanel({
     }
   }
 
-  // Dynamically find the exact teacher assigned to this course code or specialization
+  // Dynamically map assigned teacher using trimmed and normalized matching
   function getAssignedTeacherForCourse(course) {
     const courseCode = (course.code || "").trim().toUpperCase();
     const courseId = (course.id || "").toString().trim();
@@ -108,18 +108,17 @@ export default function CourseRegistrationPanel({
     setSubmittingRegistration(true);
 
     try {
-      const rowsToInsert = selectedCourseIdsToRegister.map((courseId) => {
-        return {
-          student_email: currentStudentEmail,
-          course_id: courseId,
-          school_term: selectedTermFolder,
-          school_level_tier: selectedSchoolLevelTier
-        };
-      });
+      const rowsToInsert = selectedCourseIdsToRegister.map((courseId) => ({
+        student_email: currentStudentEmail,
+        course_id: courseId,
+        school_term: selectedTermFolder,
+        school_level_tier: selectedSchoolLevelTier
+      }));
 
+      // Using upsert with conflict checking if unique constraints are set up
       const { error: regError } = await supabase
         .from("course_registrations")
-        .insert(rowsToInsert);
+        .upsert(rowsToInsert, { onConflict: "student_email,course_id,school_term,school_level_tier" });
 
       if (regError) throw regError;
 
@@ -291,7 +290,6 @@ export default function CourseRegistrationPanel({
                   const courseIdKey = course.id;
                   const courseCodeKey = course.code;
                   
-                  // Check against both ID and Code to prevent matching bugs
                   const isAlreadyRegistered = 
                     registeredCourseIds.includes(courseIdKey) || 
                     registeredCourseIds.includes(courseCodeKey) ||
