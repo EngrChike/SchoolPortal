@@ -236,8 +236,19 @@ export default function AdminManageStudentsPage() {
         if (error) throw error;
         alert("✨ Student profile updated successfully!");
       } else {
-        // Insert new student
+        // Insert new student with tier-matched curriculum mapping to link with teacher/course panels
         const generatedRegNo = `STU-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+        
+        const tierCourses = formData.school_tier === "primary" ? [
+          { code: "MTH-PRI", title: "Primary Mathematics" },
+          { code: "ENG-PRI", title: "English Studies" },
+          { code: "SCI-PRI", title: "Basic Science" }
+        ] : [
+          { code: "MTH-SEC", title: "General Mathematics" },
+          { code: "ENG-SEC", title: "Use of English" },
+          { code: "PHY-SEC", title: "Introductory Physics" }
+        ];
+
         const { error } = await supabase.from("students").insert([
           {
             reg_number: generatedRegNo,
@@ -247,16 +258,12 @@ export default function AdminManageStudentsPage() {
             class_level: formData.class_level,
             academic_session: formData.academic_session,
             current_term: formData.current_term,
-            courses: [
-              { code: "MTH-101", title: "General Mathematics I" },
-              { code: "PHY-101", title: "Introductory Physics I" },
-              { code: "GNS-101", title: "Use of English" }
-            ]
+            courses: tierCourses
           },
         ]);
 
         if (error) throw error;
-        alert("🎉 Student successfully onboarded!");
+        alert("🎉 Student successfully onboarded and linked to curriculum!");
       }
 
       setFormData({ 
