@@ -92,9 +92,11 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
       setCurrentCourseId(null); // Clear previous fallback context
       
       const normalizedSelectedClass = (selectedClass || "").trim().toUpperCase();
+      const activeProfile = currentTeacher || teacherProfile;
+      const assignedSubjects = activeProfile?.assigned_subjects || [];
+      const subjectSpecialization = (activeProfile?.subject_specialization || activeProfile?.subject || "").trim().toUpperCase();
 
       // --- PART 1: FETCH REGISTERED STUDENTS FOR THE SELECTED CLASS ---
-      // Fetch registrations and join students table safely with explicit courses relation join
       const { data: registrationRecords, error: registrationErr } = await supabase
         .from("course_registrations")
         .select(`
@@ -109,7 +111,9 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
             id,
             code,
             title,
-            name
+            name,
+            school_level_tier,
+            tier
           ),
           students(
             id,
@@ -121,17 +125,45 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
 
       if (registrationErr) throw registrationErr;
 
-      // Filter locally to match class level or school tier flexibly, handling formatting variances
+      // Filter locally to match class level, school tier, AND ensure the course matches teacher's admin assignments
       const filteredRegistrations = (registrationRecords || []).filter(reg => {
         const studentClass = (reg.students?.class_level || "").trim().toUpperCase();
         const regTier = (reg.school_level_tier || "").trim().toUpperCase();
+        const courseTier = (reg.courses?.school_level_tier || reg.courses?.tier || "").trim().toUpperCase();
         
-        // Clean strings for exact comparative matching (removing spaces and underscores)
         const cleanSelected = normalizedSelectedClass.replace(/[\s_]/g, "");
         const cleanStudentClass = studentClass.replace(/[\s_]/g, "");
         const cleanRegTier = regTier.replace(/[\s_]/g, "");
+        const cleanCourseTier = courseTier.replace(/[\s_]/g, "");
 
-        return cleanStudentClass === cleanSelected || cleanRegTier === cleanSelected;
+        const isClassMatch = 
+          cleanStudentClass === cleanSelected || 
+          cleanRegTier === cleanSelected || 
+          cleanCourseTier === cleanSelected;
+
+        if (!isClassMatch) return false;
+
+        // Verify if this course is assigned to the teacher by admin (via assigned_subjects or specialization)
+        const courseCode = (reg.courses?.code || "").trim().toUpperCase();
+        const courseIdStr = (reg.course_id || "").toString().trim();
+        const courseName = (reg.courses?.name || reg.courses?.title || "").trim().toUpperCase();
+
+        const isSubjectAssigned = assignedSubjects.some(sub => {
+          const cleanSub = sub.trim().toUpperCase();
+          return cleanSub === courseCode || cleanSub === courseIdStr || courseName.includes(cleanSub);
+        });
+
+        const isSpecializationMatch = 
+          subjectSpecialization === courseCode || 
+          subjectSpecialization === courseIdStr || 
+          (subjectSpecialization && courseName.includes(subjectSpecialization));
+
+        // If teacher has specific subject assignments, enforce them. Otherwise fallback to tier/class match.
+        if (assignedSubjects.length > 0 || subjectSpecialization) {
+          return isSubjectAssigned || isSpecializationMatch;
+        }
+
+        return true;
       });
       
       // Save the primary course ID context from the first matching registration record found
@@ -179,16 +211,22 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
           file_url,
           created_at,
           assignments(
-            title
+            title,
+            course_id
           )
         `)
         .order("created_at", { ascending: false });
 
       if (subErr) throw subErr;
 
-      // Filter locally: matching target workspace profile layers safely
+      // Filter locally: matching target workspace profile layers safely and course ID if available
       const filteredSubmissions = (subData || []).filter(sub => {
         const studentInClass = classStudentEmails.has((sub.student_email || "").trim().toLowerCase());
+        const subCourseId = sub.assignments?.course_id;
+        
+        if (currentCourseId && subCourseId) {
+          return studentInClass && Number(subCourseId) === Number(currentCourseId);
+        }
         return studentInClass;
       });
 
@@ -259,7 +297,7 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
     setIsUploading(true);
     try {
       const fileExt = assignmentFile.name.split(".").pop();
-      const safeSubjectName = (activeProfile?.subject || "subject").replace(/\s+/g, "_");
+      const safeSubjectName = (activeProfile?.subject || activeProfile?.subject_specialization || "subject").replace(/\s+/g, "_");
       const safeFileName = `${safeSubjectName}_${selectedClass}_${Date.now()}.${fileExt}`;
 
       const { error: uploadErr } = await supabase.storage
@@ -312,7 +350,7 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
       <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-lg sm:text-xl font-black text-slate-800 tracking-tight">Faculty Workspace Portal</h1>
-          <p className="text-xs text-slate-400 mt-0.5">Focus Subject: <span className="font-bold text-indigo-600 uppercase tracking-wide font-mono">{displayedProfile?.subject || "Core Subject"}</span></p>
+          <p className="text-xs text-slate-400 mt-0.5">Focus Subject: <span className="font-bold text-indigo-600 uppercase tracking-wide font-mono">{displayedProfile?.subject || displayedProfile?.subject_specialization || "Core Subject"}</span></p>
         </div>
 
         <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-2xl p-2 w-full md:w-auto">

@@ -16,11 +16,9 @@ export default function CourseRegistrationPanel({
   );
   const [selectedTermFolder, setSelectedTermFolder] = useState("1st Term");
 
-  const [selectedCourseIdsToRegister, setSelectedCourseIdsToRegister] = useState([]);
-  const [submittingRegistration, setSubmittingRegistration] = useState(false);
-
   const [editingRecordId, setEditingRecordId] = useState(null);
   const [editTermValue, setEditTermValue] = useState("1st Term");
+  const [autoRegistering, setAutoRegistering] = useState(false);
 
   // Database State
   const [databaseCourses, setDatabaseCourses] = useState([]);
@@ -30,6 +28,13 @@ export default function CourseRegistrationPanel({
   useEffect(() => {
     fetchDatabaseMasterData();
   }, []);
+
+  // Whenever class level prop changes from profile updates, sync local state
+  useEffect(() => {
+    if (studentClassLevel) {
+      setSelectedSchoolLevelTier(studentClassLevel.toUpperCase());
+    }
+  }, [studentClassLevel]);
 
   async function fetchDatabaseMasterData() {
     setLoadingData(true);
@@ -78,6 +83,7 @@ export default function CourseRegistrationPanel({
     return "Unassigned Faculty";
   }
 
+  // Filter available courses strictly by the active tier
   const filteredAvailableCourses = databaseCourses.filter((course) => {
     const courseTier = (course.school_level_tier || course.tier || "JSS1").toUpperCase();
     const currentTier = selectedSchoolLevelTier.toUpperCase();
@@ -87,35 +93,24 @@ export default function CourseRegistrationPanel({
     return courseTier === currentTier || courseTier === "JSS1";
   });
 
-  const currentFilteredRecords = performanceRecords.filter(
-    (r) => (r.school_level_tier || "JSS1").toUpperCase() === selectedSchoolLevelTier.toUpperCase() && r.school_term === selectedTermFolder
-  );
-
-  function handleCheckboxToggle(courseIdKey) {
-    if (registeredCourseIds.includes(courseIdKey)) return;
-    setSelectedCourseIdsToRegister((prev) =>
-      prev.includes(courseIdKey) ? prev.filter((id) => id !== courseIdKey) : [...prev, courseIdKey]
-    );
-  }
-
-  async function handleBatchCourseRegistration(e) {
-    e.preventDefault();
-    if (!currentStudentEmail || selectedCourseIdsToRegister.length === 0) {
-      alert("Please select at least one course to register.");
-      return;
+  // Automatically execute backend registration for all filtered tier courses when data changes
+  useEffect(() => {
+    if (!loadingData && currentStudentEmail && filteredAvailableCourses.length > 0) {
+      syncAutomaticRegistrations();
     }
+  }, [loadingData, selectedSchoolLevelTier, selectedTermFolder, databaseCourses]);
 
-    setSubmittingRegistration(true);
-
+  async function syncAutomaticRegistrations() {
+    if (!currentStudentEmail || filteredAvailableCourses.length === 0) return;
+    setAutoRegistering(true);
     try {
-      const rowsToInsert = selectedCourseIdsToRegister.map((courseId) => ({
+      const rowsToInsert = filteredAvailableCourses.map((course) => ({
         student_email: currentStudentEmail,
-        course_id: courseId,
+        course_id: course.id,
         school_term: selectedTermFolder,
         school_level_tier: selectedSchoolLevelTier
       }));
 
-      // Using upsert with conflict checking if unique constraints are set up
       const { error: regError } = await supabase
         .from("course_registrations")
         .upsert(rowsToInsert, { onConflict: "student_email,course_id,school_term,school_level_tier" });
@@ -125,18 +120,19 @@ export default function CourseRegistrationPanel({
       if (typeof refreshRegistrations === "function") {
         await refreshRegistrations(currentStudentEmail);
       }
-
-      setSelectedCourseIdsToRegister([]);
-      alert("✨ Selected courses successfully registered!");
     } catch (err) {
-      alert("Registration Error: " + err.message);
+      console.error("Auto-registration sync error:", err.message);
     } finally {
-      setSubmittingRegistration(false);
+      setAutoRegistering(false);
     }
   }
 
+  const currentFilteredRecords = performanceRecords.filter(
+    (r) => (r.school_level_tier || "JSS1").toUpperCase() === selectedSchoolLevelTier.toUpperCase() && r.school_term === selectedTermFolder
+  );
+
   async function handleDeleteCourseRegistration(courseId) {
-    if (!confirm("Are you sure you want to delete this course registration entry?")) return;
+    if (!confirm("Are you sure you want to remove this course assignment from your profile?")) return;
     try {
       const { error } = await supabase
         .from("course_registrations")
@@ -156,7 +152,7 @@ export default function CourseRegistrationPanel({
   }
 
   async function handleClearRegisteredCourses(termName) {
-    if (!confirm(`Are you sure you want to clear registrations for ${selectedSchoolLevelTier} - ${termName}?`)) return;
+    if (!confirm(`Are you sure you want to clear all automated course profiles for ${selectedSchoolLevelTier} - ${termName}?`)) return;
     try {
       const { error } = await supabase
         .from("course_registrations")
@@ -166,12 +162,12 @@ export default function CourseRegistrationPanel({
         .eq("school_term", termName);
 
       if (error) throw error;
-      alert(`✅ Courses successfully cleared for ${selectedSchoolLevelTier} (${termName})!`);
+      alert(`✅ Curriculum successfully cleared for ${selectedSchoolLevelTier} (${termName})!`);
       if (typeof refreshRegistrations === "function") {
         await refreshRegistrations(currentStudentEmail);
       }
     } catch (err) {
-      alert("Clear Registration Error: " + err.message);
+      alert("Clear Error: " + err.message);
     }
   }
 
@@ -185,7 +181,7 @@ export default function CourseRegistrationPanel({
         .eq("school_level_tier", selectedSchoolLevelTier);
 
       if (error) throw error;
-      alert("✏️ Course registration term successfully updated!");
+      alert("✏️ Course term profile successfully updated!");
       setEditingRecordId(null);
       if (typeof refreshRegistrations === "function") {
         await refreshRegistrations(currentStudentEmail);
@@ -201,17 +197,14 @@ export default function CourseRegistrationPanel({
       <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
         <div>
           <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Active Student Class & Tier</h3>
-          <p className="text-xs text-slate-400">Displaying database course curriculum filtered by class profile ({selectedSchoolLevelTier}).</p>
+          <p className="text-xs text-slate-400">Curriculum maps automatically based on class profile ({selectedSchoolLevelTier}).</p>
         </div>
         <div className="flex gap-2 w-full sm:w-auto overflow-x-auto">
           {["PRIMARY 1", "JSS1", "JSS2", "JSS3", "SS1"].map((tier) => (
             <button
               key={tier}
               type="button"
-              onClick={() => {
-                setSelectedSchoolLevelTier(tier);
-                setSelectedCourseIdsToRegister([]);
-              }}
+              onClick={() => setSelectedSchoolLevelTier(tier)}
               className={`py-2.5 px-4 rounded-xl text-xs font-bold cursor-pointer transition-all flex-shrink-0 ${
                 selectedSchoolLevelTier === tier ? "bg-indigo-600 text-white shadow-md" : "bg-slate-100 text-slate-600"
               }`}
@@ -229,7 +222,7 @@ export default function CourseRegistrationPanel({
             <h3 className="text-sm sm:text-base font-black text-slate-800 tracking-tight">
               Term Folders for [{selectedSchoolLevelTier}]
             </h3>
-            <p className="text-xs text-slate-400">Select a term folder to check or register specific database courses.</p>
+            <p className="text-xs text-slate-400">Select a term folder to inspect automated curriculum mapping.</p>
           </div>
           <div className="flex gap-2">
             {["1st Term", "2nd Term", "3rd Term"].map((term) => (
@@ -252,9 +245,9 @@ export default function CourseRegistrationPanel({
         {/* Clear Term Storage Option */}
         <div className="flex items-center justify-between p-4 bg-amber-50/60 border border-amber-200/60 rounded-2xl">
           <div>
-            <h4 className="text-xs font-bold text-amber-900 uppercase">Term Batch Management</h4>
+            <h4 className="text-xs font-bold text-amber-900 uppercase">Term Curriculum Management</h4>
             <p className="text-[11px] text-amber-700 mt-0.5">
-              Clear all course registrations under <span className="font-bold underline">{selectedSchoolLevelTier} - {selectedTermFolder}</span>.
+              Reset automated records under <span className="font-bold underline">{selectedSchoolLevelTier} - {selectedTermFolder}</span>.
             </p>
           </div>
           <button
@@ -265,114 +258,33 @@ export default function CourseRegistrationPanel({
             Clear {selectedSchoolLevelTier} ({selectedTermFolder})
           </button>
         </div>
-
-        {/* Dynamic Database Courses Selection Panel */}
-        <div className="pt-2">
-          <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider mb-2">
-            Database Courses for {selectedSchoolLevelTier} [{selectedTermFolder}]
-          </h4>
-          <p className="text-xs text-slate-400 mb-4">
-            Courses and instructors are loaded live from your Supabase tables (<span className="font-semibold text-slate-600">courses</span> & <span className="font-semibold text-slate-600">teachers</span>).
-          </p>
-
-          {loadingData ? (
-            <p className="text-sm font-medium text-slate-400 text-center py-6 bg-slate-50 rounded-2xl border border-slate-200">
-              Loading courses and teachers from database...
-            </p>
-          ) : filteredAvailableCourses.length === 0 ? (
-            <p className="text-sm font-medium text-slate-400 text-center py-6 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-              No courses found in your Supabase 'courses' table matching tier: {selectedSchoolLevelTier}. Please verify your database rows.
-            </p>
-          ) : (
-            <form onSubmit={handleBatchCourseRegistration} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-80 overflow-y-auto p-1">
-                {filteredAvailableCourses.map((course) => {
-                  const courseIdKey = course.id;
-                  const courseCodeKey = course.code;
-                  
-                  const isAlreadyRegistered = 
-                    registeredCourseIds.includes(courseIdKey) || 
-                    registeredCourseIds.includes(courseCodeKey) ||
-                    currentFilteredRecords.some(r => r.course_id === courseIdKey || r.course_id === courseCodeKey);
-
-                  const isChecked = selectedCourseIdsToRegister.includes(courseIdKey);
-                  const assignedTeacher = getAssignedTeacherForCourse(course);
-
-                  return (
-                    <div
-                      key={courseIdKey || courseCodeKey}
-                      onClick={() => !isAlreadyRegistered && handleCheckboxToggle(courseIdKey)}
-                      className={`p-3.5 rounded-2xl border transition-all flex items-start gap-3 ${
-                        isAlreadyRegistered
-                          ? "bg-slate-100/60 border-slate-200 opacity-70 cursor-not-allowed"
-                          : isChecked
-                          ? "bg-indigo-50/70 border-indigo-300 cursor-pointer shadow-sm"
-                          : "bg-slate-50/50 border-slate-200 hover:border-slate-300 cursor-pointer"
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        disabled={isAlreadyRegistered}
-                        checked={isChecked || isAlreadyRegistered}
-                        onChange={() => {}}
-                        className="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-[10px] font-mono font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md uppercase">
-                            {course.code || "CRS"}
-                          </span>
-                          {isAlreadyRegistered && (
-                            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">
-                              Registered ✓
-                            </span>
-                          )}
-                        </div>
-                        <h5 className="text-xs font-black text-slate-800 mt-1 truncate">{course.title || course.name}</h5>
-                        <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1 font-medium">
-                          <span>Instructor:</span>
-                          <span className="font-bold text-slate-700">{assignedTeacher}</span>
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <button
-                type="submit"
-                disabled={submittingRegistration || selectedCourseIdsToRegister.length === 0}
-                className={`w-full font-bold text-sm py-3 rounded-xl transition-all shadow-md ${
-                  submittingRegistration || selectedCourseIdsToRegister.length === 0
-                    ? "bg-slate-300 text-slate-500 cursor-not-allowed"
-                    : "bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer"
-                }`}
-              >
-                {submittingRegistration ? "Saving Registrations..." : `Save & Register Selected Courses (${selectedCourseIdsToRegister.length})`}
-              </button>
-            </form>
-          )}
-        </div>
       </div>
 
-      {/* Registered Records Listing */}
+      {/* Automated Registered Records Listing */}
       <div className="bg-white p-5 sm:p-6 md:p-8 rounded-3xl sm:rounded-[2rem] border border-slate-100 shadow-sm">
-        <div className="mb-4">
-          <h3 className="text-sm font-black text-slate-700 uppercase tracking-wider">
-            Registered Courses & Teachers for {selectedSchoolLevelTier} ({selectedTermFolder})
-          </h3>
-          <p className="text-xs text-slate-400 mt-0.5">Review saved course selections, track assigned instructors, or edit/delete entries.</p>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-sm font-black text-slate-700 uppercase tracking-wider">
+              Assigned Courses & Instructors for {selectedSchoolLevelTier} ({selectedTermFolder})
+            </h3>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {autoRegistering ? "Synchronizing automated curriculum..." : "All curriculum courses assigned to your class level are listed below."}
+            </p>
+          </div>
         </div>
 
-        {currentFilteredRecords.length === 0 ? (
+        {loadingData ? (
+          <p className="text-sm font-medium text-slate-400 text-center py-6 bg-slate-50 rounded-2xl border border-slate-200">
+            Loading course curriculum from database...
+          </p>
+        ) : currentFilteredRecords.length === 0 ? (
           <p className="text-sm font-medium text-slate-400 text-center py-6 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-            No registered courses found under {selectedSchoolLevelTier} - {selectedTermFolder}.
+            No courses mapped under {selectedSchoolLevelTier} - {selectedTermFolder}. Please check your database 'courses' table.
           </p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {currentFilteredRecords.map((record, index) => {
               const isEditing = editingRecordId === record.course_id;
-              
               const matchedDbCourse = databaseCourses.find(c => c.id === record.course_id || c.code === record.course_id);
               const assignedTeacherName = matchedDbCourse ? getAssignedTeacherForCourse(matchedDbCourse) : "Unassigned Faculty";
 
@@ -396,7 +308,7 @@ export default function CourseRegistrationPanel({
                         onClick={() => handleDeleteCourseRegistration(record.course_id)}
                         className="text-xs font-bold text-rose-600 hover:text-rose-700 py-1 px-2.5 bg-rose-50 rounded-lg cursor-pointer"
                       >
-                        Delete
+                        Remove
                       </button>
                       {!isEditing ? (
                         <button
@@ -407,7 +319,7 @@ export default function CourseRegistrationPanel({
                           }}
                           className="text-xs font-bold text-indigo-600 hover:text-indigo-700 py-1 px-2.5 bg-indigo-50 rounded-lg cursor-pointer"
                         >
-                          Edit
+                          Edit Term
                         </button>
                       ) : (
                         <button
