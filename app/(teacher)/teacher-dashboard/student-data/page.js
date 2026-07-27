@@ -96,13 +96,13 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
       // --- STEP A: ENSURE WE HAVE A VALID COURSE ID FOR THIS CLASS LAYER ---
       const { data: coursesData } = await supabase
         .from("courses")
-        .select("id, code, title, school_level_tier, tier");
+        .select("id, code, name, section, teacher_email");
 
       let resolvedCourseId = null;
       if (coursesData && coursesData.length > 0) {
         const matchingCourse = coursesData.find(c => {
-          const cTier = (c.school_level_tier || c.tier || "").replace(/[\s_]/g, "").toUpperCase();
-          return cTier === normalizedSelectedClass || cTier.includes(normalizedSelectedClass) || normalizedSelectedClass.includes(cTier);
+          const cSection = (c.section || c.code || "").replace(/[\s_]/g, "").toUpperCase();
+          return cSection === normalizedSelectedClass || cSection.includes(normalizedSelectedClass) || normalizedSelectedClass.includes(cSection);
         });
         if (matchingCourse) {
           resolvedCourseId = matchingCourse.id;
@@ -223,7 +223,6 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
           .insert({
             student_email: selectedStudent.email,
             course_id: Number(currentCourseId),
-            school_level_tier: selectedClass,
             continuous_assessment: Number(scores.assignment),
             mid_semester: Number(scores.test),
             final_exam: Number(scores.exam),
@@ -241,7 +240,7 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
     }
   }
 
-  // 5. Upload and send assignments out to the selected class with auto-course creation fallback
+  // 5. Upload and send assignments out to the selected class with auto-course creation fallback matching your table columns
   async function handleUploadAssignment(e) {
     e.preventDefault();
     const activeProfile = currentTeacher || teacherProfile;
@@ -259,13 +258,15 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
     try {
       let activeCourseId = currentCourseId;
 
-      // Auto-create a course record in Supabase using safe default columns
+      // Auto-create matching your exact public.courses schema (code, name, section, teacher_email)
       if (!activeCourseId) {
         const { data: newCourse, error: courseErr } = await supabase
           .from("courses")
           .insert({
             code: `${selectedClass}_${activeProfile?.subject || "SUB"}`.toUpperCase(),
-            title: `${activeProfile?.subject || "Subject"} for ${selectedClass}`,
+            name: `${activeProfile?.subject || "Subject"} for ${selectedClass}`,
+            section: selectedClass,
+            teacher_email: teacherEmail.trim().toLowerCase()
           })
           .select("id")
           .single();
