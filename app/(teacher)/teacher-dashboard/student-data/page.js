@@ -8,7 +8,7 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
   const [teacherEmail, setTeacherEmail] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   
-  // Active classroom level
+  // Active classroom level (e.g., 'JSS1')
   const [selectedClass, setSelectedClass] = useState(""); 
   
   // State Arrays for Lists
@@ -17,7 +17,7 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Fallback state for current course ID context
+  // Fallback state to keep track of the current class's course id context safely
   const [currentCourseId, setCurrentCourseId] = useState(null);
 
   // Assignment Creation Form States
@@ -33,7 +33,7 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
     exam: 0,
   });
 
-  // 1. Sync prop profile to state or load from storage
+  // 1. Sync prop profile to state or fall back to native session loader
   useEffect(() => {
     if (currentTeacher) {
       setTeacherProfile(currentTeacher);
@@ -92,112 +92,77 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
       setCurrentCourseId(null);
       
       const normalizedSelectedClass = (selectedClass || "").replace(/[\s_]/g, "").toUpperCase();
-      const activeProfile = currentTeacher || teacherProfile;
-      const assignedSubjects = activeProfile?.assigned_subjects || [];
-      const subjectSpecialization = (activeProfile?.subject_specialization || activeProfile?.subject || "").trim().toUpperCase();
 
-      // --- PART 1: FETCH REGISTERED STUDENTS FOR THE SELECTED CLASS ---
-      const { data: registrationRecords, error: registrationErr } = await supabase
-        .from("course_registrations")
-        .select(`
-          id,
-          course_id,
-          continuous_assessment,
-          mid_semester,
-          final_exam,
-          student_email,
-          school_level_tier,
-          courses (
-            id,
-            code,
-            title,
-            name,
-            school_level_tier,
-            tier
-          ),
-          students(
-            id,
-            name,
-            email,
-            class_level
-          )
-        `);
+      // --- STEP A: ENSURE WE HAVE A VALID COURSE ID FOR THIS CLASS LAYER ---
+      const { data: coursesData } = await supabase
+        .from("courses")
+        .select("id, code, title, school_level_tier, tier");
 
-      if (registrationErr) throw registrationErr;
-
-      // Relaxed Local Filtering to catch JSS1 regardless of formatting variations
-      const filteredRegistrations = (registrationRecords || []).filter(reg => {
-        const studentClass = (reg.students?.class_level || "").replace(/[\s_]/g, "").toUpperCase();
-        const regTier = (reg.school_level_tier || "").replace(/[\s_]/g, "").toUpperCase();
-        const courseTier = (reg.courses?.school_level_tier || reg.courses?.tier || "").replace(/[\s_]/g, "").toUpperCase();
-
-        const isClassMatch = 
-          studentClass.includes(normalizedSelectedClass) || 
-          normalizedSelectedClass.includes(studentClass) ||
-          regTier === normalizedSelectedClass || 
-          courseTier === normalizedSelectedClass ||
-          !studentClass; // Fallback include if class_level is empty
-
-        if (!isClassMatch) return false;
-
-        // Verify subject alignment if teacher has specific subjects, otherwise allow all for this tier
-        const courseCode = (reg.courses?.code || "").trim().toUpperCase();
-        const courseIdStr = (reg.course_id || "").toString().trim();
-        const courseName = (reg.courses?.name || reg.courses?.title || "").trim().toUpperCase();
-
-        if (assignedSubjects.length === 0 && !subjectSpecialization) {
-          return true; // If no subjects are bound to teacher, show all students in the class level
-        }
-
-        const isSubjectAssigned = assignedSubjects.some(sub => {
-          const cleanSub = sub.replace(/[\s_]/g, "").toUpperCase();
-          return cleanSub === courseCode || cleanSub === courseIdStr || courseCode.includes(cleanSub) || cleanSub.includes(courseCode);
+      let resolvedCourseId = null;
+      if (coursesData && coursesData.length > 0) {
+        const matchingCourse = coursesData.find(c => {
+          const cTier = (c.school_level_tier || c.tier || "").replace(/[\s_]/g, "").toUpperCase();
+          return cTier === normalizedSelectedClass || cTier.includes(normalizedSelectedClass) || normalizedSelectedClass.includes(cTier);
         });
-
-        const isSpecializationMatch = 
-          !subjectSpecialization ||
-          subjectSpecialization === courseCode || 
-          subjectSpecialization === courseIdStr || 
-          courseCode.includes(subjectSpecialization) ||
-          courseName.includes(subjectSpecialization);
-
-        return isSubjectAssigned || isSpecializationMatch;
-      });
-      
-      // Save course ID context
-      if (filteredRegistrations && filteredRegistrations.length > 0) {
-        const foundCourseId = filteredRegistrations.find(r => r.course_id)?.course_id;
-        if (foundCourseId) {
-          setCurrentCourseId(foundCourseId);
+        if (matchingCourse) {
+          resolvedCourseId = matchingCourse.id;
+          setCurrentCourseId(matchingCourse.id);
+        } else {
+          // Fallback to the first available course if exact tier match isn't found
+          resolvedCourseId = coursesData[0].id;
+          setCurrentCourseId(coursesData[0].id);
         }
       }
-      
-      // DE-DUPLICATION STRATEGY
-      const uniqueStudentsMap = new Map();
 
-      filteredRegistrations.forEach((reg) => {
-        const lookupId = reg.students?.id || reg.student_email || reg.id;
-        if (!uniqueStudentsMap.has(lookupId)) {
-          uniqueStudentsMap.set(lookupId, {
-            id: reg.id, 
-            course_id: reg.course_id,
-            student_id: reg.students?.id || reg.id,
-            name: reg.students?.name || "Enrolled Student",
-            email: (reg.students?.email || reg.student_email || "").trim().toLowerCase(),
-            continuous_assessment: reg.continuous_assessment ?? 0,
-            mid_semester: reg.mid_semester ?? 0,
-            final_exam: reg.final_exam ?? 0,
-          });
+      // --- STEP B: FETCH ALL STUDENTS IN THE SYSTEM (To prevent missing items due to broken registration joins) ---
+      const { data: allStudents, error: studentsErr } = await supabase
+        .from("students")
+        .select("id, name, email, class_level");
+
+      if (studentsErr) throw studentsErr;
+
+      // Filter students matching the selected class (e.g., JSS1)
+      const classStudents = (allStudents || []).filter(student => {
+        const studentClass = (student.class_level || "").replace(/[\s_]/g, "").toUpperCase();
+        return studentClass === normalizedSelectedClass || studentClass.includes(normalizedSelectedClass) || normalizedSelectedClass.includes(studentClass);
+      });
+
+      // --- STEP C: FETCH COURSE REGISTRATIONS TO PULL EXISTING SCORES IF ANY ---
+      const { data: registrationRecords } = await supabase
+        .from("course_registrations")
+        .select("id, course_id, continuous_assessment, mid_semester, final_exam, student_email, students(id, email)");
+
+      // Map registrations by student email for fast grade lookups
+      const regMap = new Map();
+      (registrationRecords || []).forEach(reg => {
+        const emailKey = (reg.student_email || reg.students?.email || "").trim().toLowerCase();
+        if (emailKey) {
+          regMap.set(emailKey, reg);
         }
       });
 
-      const processedRoster = Array.from(uniqueStudentsMap.values());
-      setStudents(processedRoster);
+      // Build final student roster for the table
+      const processedRoster = classStudents.map(student => {
+        const studentEmailClean = (student.email || "").trim().toLowerCase();
+        const existingReg = regMap.get(studentEmailClean);
 
+        return {
+          id: existingReg ? existingReg.id : student.id, // Registration ID for updates, or student ID fallback
+          student_id: student.id,
+          course_id: resolvedCourseId,
+          name: student.name || "Unnamed Student",
+          email: studentEmailClean,
+          continuous_assessment: existingReg?.continuous_assessment ?? 0,
+          mid_semester: existingReg?.mid_semester ?? 0,
+          final_exam: existingReg?.final_exam ?? 0,
+        };
+      });
+
+      setStudents(processedRoster);
       const classStudentEmails = new Set(processedRoster.map(s => s.email));
 
-      // --- PART 2: FETCH SUBMISSIONS ---
-      const { data: subData, error: subErr } = await supabase
+      // --- STEP D: FETCH SUBMISSIONS ---
+      const { data: subData } = await supabase
         .from("assignment_submissions")
         .select(`
           id,
@@ -214,11 +179,8 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
         `)
         .order("created_at", { ascending: false });
 
-      if (subErr) throw subErr;
-
       const filteredSubmissions = (subData || []).filter(sub => {
-        const studentInClass = classStudentEmails.has((sub.student_email || "").trim().toLowerCase());
-        return studentInClass;
+        return classStudentEmails.has((sub.student_email || "").trim().toLowerCase());
       });
 
       setSubmissions(filteredSubmissions);
@@ -243,16 +205,37 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
     setIsSaving(true);
 
     try {
-      const { error } = await supabase
+      // Check if a registration row exists, otherwise insert one
+      const { data: existingReg } = await supabase
         .from("course_registrations")
-        .update({
-          continuous_assessment: Number(scores.assignment),
-          mid_semester: Number(scores.test),
-          final_exam: Number(scores.exam),
-        })
-        .eq("id", selectedStudent.id); 
+        .select("id")
+        .eq("student_email", selectedStudent.email)
+        .eq("course_id", currentCourseId)
+        .maybeSingle();
 
-      if (error) throw error;
+      if (existingReg) {
+        const { error } = await supabase
+          .from("course_registrations")
+          .update({
+            continuous_assessment: Number(scores.assignment),
+            mid_semester: Number(scores.test),
+            final_exam: Number(scores.exam),
+          })
+          .eq("id", existingReg.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("course_registrations")
+          .insert({
+            student_email: selectedStudent.email,
+            course_id: Number(currentCourseId),
+            school_level_tier: selectedClass,
+            continuous_assessment: Number(scores.assignment),
+            mid_semester: Number(scores.test),
+            final_exam: Number(scores.exam),
+          });
+        if (error) throw error;
+      }
 
       setSelectedStudent(null);
       fetchClassWorkspaceData(); 
@@ -278,7 +261,10 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
       return;
     }
 
-    const activeCourseId = currentCourseId || students[0]?.course_id || 1;
+    if (!currentCourseId) {
+      alert("Error: No valid Course ID found for this class layer. Please verify your courses table in Supabase.");
+      return;
+    }
 
     setIsUploading(true);
     try {
@@ -300,7 +286,7 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
         .insert({
           title: assignmentTitle.trim(),
           file_url: publicFileUrl,
-          course_id: Number(activeCourseId),
+          course_id: Number(currentCourseId),
           teacher_email: teacherEmail.trim().toLowerCase(),
           deadline: assignmentDeadline ? new Date(assignmentDeadline).toISOString() : null
         });
@@ -385,7 +371,7 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-sm text-slate-600">
                     {students.map((student) => (
-                      <tr key={student.id} className="hover:bg-slate-50/40 transition-colors">
+                      <tr key={student.student_id || student.id} className="hover:bg-slate-50/40 transition-colors">
                         <td className="px-4 sm:px-6 py-4">
                           <div className="font-bold text-slate-800 break-words">{student.name}</div>
                           <div className="text-xs text-slate-400 font-mono break-all">{student.email}</div>
