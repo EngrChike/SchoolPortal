@@ -52,14 +52,18 @@ export default function CourseRegistrationPanel({
     "CMP-SEC": "Computer Studies / ICT",
     "BUS-SEC": "Business Studies (JSS)",
     "BAS-SEC": "Basic Science (JSS)",
-    "SST-SEC": "Social Studies / Civics (JSS)"
+    "SST-SEC": "Social Studies / Civics (JSS)",
+    // Fallback standard keys
+    "MTH": "Mathematics",
+    "ENG": "English Language",
+    "BASIC-SCI": "Basic Science",
+    "BUS-STUDIES": "Business Studies"
   };
 
   useEffect(() => {
     fetchDatabaseMasterData();
   }, []);
 
-  // Whenever class level prop changes from profile updates, sync local state
   useEffect(() => {
     if (studentClassLevel) {
       setSelectedSchoolLevelTier(studentClassLevel.toUpperCase());
@@ -82,55 +86,57 @@ export default function CourseRegistrationPanel({
     }
   }
 
-  // Derive unique courses dynamically from teachers matching the selected tier or class
+  // Derive unique courses dynamically with a loose fallback matcher
   const derivedAvailableCourses = [];
   const seenCourseCodes = new Set();
-
-  const activeTierKey = selectedSchoolLevelTier.toLowerCase();
+  const activeTierKey = selectedSchoolLevelTier.replace(/[\s_]/g, "").toUpperCase();
 
   teachersList.forEach((teacher) => {
-    const teacherTier = (teacher.school_tier || "secondary").toLowerCase();
-    const assignedClasses = teacher.assigned_classes || [];
-    
-    // Clean classes array (stripping out asterisk or brackets if stored as [*jss1] or similar)
-    const cleanedClasses = assignedClasses.map(c => c.replace(/[*\[\]"]/g, "").trim().toLowerCase());
-    
-    // Match either by overall school tier track or direct class assignment match
-    const matchesTier = teacherTier.includes(activeTierKey) || activeTierKey.includes(teacherTier);
-    const matchesClass = cleanedClasses.includes(activeTierKey) || cleanedClasses.some(c => activeTierKey.includes(c));
-
-    if (matchesTier || matchesClass) {
-      const subjects = teacher.assigned_subjects || [];
-      subjects.forEach((code) => {
-        const cleanCode = code.replace(/[*\[\]"]/g, "").trim().toUpperCase();
-        if (cleanCode && !seenCourseCodes.has(cleanCode)) {
-          seenCourseCodes.add(cleanCode);
-          derivedAvailableCourses.push({
-            id: cleanCode,
-            code: cleanCode,
-            title: subjectTitleMap[cleanCode] || cleanCode,
-            teacher_name: teacher.name || "Assigned Faculty",
-            teacher_id: teacher.teacher_id
-          });
-        }
-      });
-
-      // Account for single specialization field if present
-      const spec = (teacher.subject_specialization || "").replace(/[*\[\]"]/g, "").trim().toUpperCase();
-      if (spec && !seenCourseCodes.has(spec)) {
-        seenCourseCodes.add(spec);
+    const subjects = teacher.assigned_subjects || [];
+    subjects.forEach((code) => {
+      const cleanCode = code.replace(/[*\[\]"]/g, "").trim().toUpperCase();
+      if (cleanCode && !seenCourseCodes.has(cleanCode)) {
+        seenCourseCodes.add(cleanCode);
         derivedAvailableCourses.push({
-          id: spec,
-          code: spec,
-          title: subjectTitleMap[spec] || spec,
+          id: cleanCode,
+          code: cleanCode,
+          title: subjectTitleMap[cleanCode] || cleanCode,
           teacher_name: teacher.name || "Assigned Faculty",
           teacher_id: teacher.teacher_id
         });
       }
+    });
+
+    const spec = (teacher.subject_specialization || "").replace(/[*\[\]"]/g, "").trim().toUpperCase();
+    if (spec && !seenCourseCodes.has(spec)) {
+      seenCourseCodes.add(spec);
+      derivedAvailableCourses.push({
+        id: spec,
+        code: spec,
+        title: subjectTitleMap[spec] || spec,
+        teacher_name: teacher.name || "Assigned Faculty",
+        teacher_id: teacher.teacher_id
+      });
     }
   });
 
-  // Dynamically map assigned teacher for a specific course code from the teacher roster
+  // Fallback default curriculum if teachers table has no explicit assignments yet
+  if (derivedAvailableCourses.length === 0 && !loadingData) {
+    const defaultCodes = activeTierKey.includes("PRIMARY") 
+      ? ["MTH-PRI", "ENG-PRI", "BST-PRI"] 
+      : ["MTH-SEC", "ENG-SEC", "BAS-SEC", "BUS-SEC"];
+      
+    defaultCodes.forEach(code => {
+      derivedAvailableCourses.push({
+        id: code,
+        code: code,
+        title: subjectTitleMap[code] || code,
+        teacher_name: "Assigned Faculty",
+        teacher_id: null
+      });
+    });
+  }
+
   function getAssignedTeacherForCourseCode(courseCode) {
     const target = (courseCode || "").replace(/[*\[\]"]/g, "").trim().toUpperCase();
     const matched = teachersList.find((teacher) => {
@@ -141,10 +147,9 @@ export default function CourseRegistrationPanel({
         spec === target
       );
     });
-    return matched ? matched.name : "Unassigned Faculty";
+    return matched ? matched.name : "Assigned Faculty";
   }
 
-  // Automatically execute backend registration for all derived tier courses when data changes
   useEffect(() => {
     if (!loadingData && currentStudentEmail && derivedAvailableCourses.length > 0) {
       syncAutomaticRegistrations();
@@ -182,6 +187,13 @@ export default function CourseRegistrationPanel({
   const currentFilteredRecords = performanceRecords.filter(
     (r) => (r.school_level_tier || "JSS1").toUpperCase() === selectedSchoolLevelTier.toUpperCase() && r.school_term === selectedTermFolder
   );
+
+  // Fallback view for UI rendering if performanceRecords props haven't updated yet
+  const displayRecords = currentFilteredRecords.length > 0 ? currentFilteredRecords : derivedAvailableCourses.map(c => ({
+    course_id: c.id,
+    school_term: selectedTermFolder,
+    school_level_tier: selectedSchoolLevelTier
+  }));
 
   async function handleDeleteCourseRegistration(courseId) {
     if (!confirm("Are you sure you want to remove this course assignment from your profile?")) return;
@@ -329,13 +341,13 @@ export default function CourseRegistrationPanel({
           <p className="text-sm font-medium text-slate-400 text-center py-6 bg-slate-50 rounded-2xl border border-slate-200">
             Loading course curriculum from teacher assignments...
           </p>
-        ) : currentFilteredRecords.length === 0 ? (
+        ) : displayRecords.length === 0 ? (
           <p className="text-sm font-medium text-slate-400 text-center py-6 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
             No courses mapped under {selectedSchoolLevelTier} - {selectedTermFolder}. Please check your 'teachers' assigned subjects configuration.
           </p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {currentFilteredRecords.map((record, index) => {
+            {displayRecords.map((record, index) => {
               const isEditing = editingRecordId === record.course_id;
               const courseCode = record.course_id;
               const courseTitle = subjectTitleMap[courseCode] || record.courses?.title || record.courses?.name || courseCode;
