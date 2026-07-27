@@ -108,31 +108,28 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
           resolvedCourseId = matchingCourse.id;
           setCurrentCourseId(matchingCourse.id);
         } else {
-          // Fallback to the first available course if exact tier match isn't found
           resolvedCourseId = coursesData[0].id;
           setCurrentCourseId(coursesData[0].id);
         }
       }
 
-      // --- STEP B: FETCH ALL STUDENTS IN THE SYSTEM (To prevent missing items due to broken registration joins) ---
+      // --- STEP B: FETCH ALL STUDENTS IN THE SYSTEM ---
       const { data: allStudents, error: studentsErr } = await supabase
         .from("students")
         .select("id, name, email, class_level");
 
       if (studentsErr) throw studentsErr;
 
-      // Filter students matching the selected class (e.g., JSS1)
       const classStudents = (allStudents || []).filter(student => {
         const studentClass = (student.class_level || "").replace(/[\s_]/g, "").toUpperCase();
         return studentClass === normalizedSelectedClass || studentClass.includes(normalizedSelectedClass) || normalizedSelectedClass.includes(studentClass);
       });
 
-      // --- STEP C: FETCH COURSE REGISTRATIONS TO PULL EXISTING SCORES IF ANY ---
+      // --- STEP C: FETCH COURSE REGISTRATIONS TO PULL EXISTING SCORES ---
       const { data: registrationRecords } = await supabase
         .from("course_registrations")
         .select("id, course_id, continuous_assessment, mid_semester, final_exam, student_email, students(id, email)");
 
-      // Map registrations by student email for fast grade lookups
       const regMap = new Map();
       (registrationRecords || []).forEach(reg => {
         const emailKey = (reg.student_email || reg.students?.email || "").trim().toLowerCase();
@@ -141,13 +138,12 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
         }
       });
 
-      // Build final student roster for the table
       const processedRoster = classStudents.map(student => {
         const studentEmailClean = (student.email || "").trim().toLowerCase();
         const existingReg = regMap.get(studentEmailClean);
 
         return {
-          id: existingReg ? existingReg.id : student.id, // Registration ID for updates, or student ID fallback
+          id: existingReg ? existingReg.id : student.id,
           student_id: student.id,
           course_id: resolvedCourseId,
           name: student.name || "Unnamed Student",
@@ -199,13 +195,11 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
     });
   }
 
-  // 4. Save CA, Test, and Exam metrics
   async function handleUpdateGrades(e) {
     e.preventDefault();
     setIsSaving(true);
 
     try {
-      // Check if a registration row exists, otherwise insert one
       const { data: existingReg } = await supabase
         .from("course_registrations")
         .select("id")
@@ -247,7 +241,7 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
     }
   }
 
-  // 5. Upload and send assignments out to the selected class
+  // 5. Upload and send assignments out to the selected class with auto-course creation fallback
   async function handleUploadAssignment(e) {
     e.preventDefault();
     const activeProfile = currentTeacher || teacherProfile;
@@ -261,13 +255,27 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
       return;
     }
 
-    if (!currentCourseId) {
-      alert("Error: No valid Course ID found for this class layer. Please verify your courses table in Supabase.");
-      return;
-    }
-
     setIsUploading(true);
     try {
+      let activeCourseId = currentCourseId;
+
+      // Auto-create a course record in Supabase if one doesn't exist yet for this class tier
+      if (!activeCourseId) {
+        const { data: newCourse, error: courseErr } = await supabase
+          .from("courses")
+          .insert({
+            code: `${selectedClass}_${activeProfile?.subject || "SUB"}`.toUpperCase(),
+            title: `${activeProfile?.subject || "Subject"} for ${selectedClass}`,
+            school_level_tier: selectedClass,
+          })
+          .select("id")
+          .single();
+
+        if (courseErr) throw new Error("Could not auto-create course track: " + courseErr.message);
+        activeCourseId = newCourse.id;
+        setCurrentCourseId(activeCourseId);
+      }
+
       const fileExt = assignmentFile.name.split(".").pop();
       const safeSubjectName = (activeProfile?.subject || activeProfile?.subject_specialization || "subject").replace(/\s+/g, "_");
       const safeFileName = `${safeSubjectName}_${selectedClass}_${Date.now()}.${fileExt}`;
@@ -286,7 +294,7 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
         .insert({
           title: assignmentTitle.trim(),
           file_url: publicFileUrl,
-          course_id: Number(currentCourseId),
+          course_id: Number(activeCourseId),
           teacher_email: teacherEmail.trim().toLowerCase(),
           deadline: assignmentDeadline ? new Date(assignmentDeadline).toISOString() : null
         });
@@ -318,7 +326,6 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
 
   return (
     <div className="space-y-6 sm:space-y-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full overflow-x-hidden font-sans">
-      {/* Header Selector Switcher Component */}
       <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-lg sm:text-xl font-black text-slate-800 tracking-tight">Faculty Workspace Portal</h1>
@@ -343,8 +350,6 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
         <div className="lg:col-span-2 space-y-6 sm:space-y-8">
-          
-          {/* Section 1: Classroom Assessment Score Ledger Records */}
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-slate-50/20">
               <h3 className="text-sm font-black text-slate-700 uppercase tracking-wider">
@@ -396,7 +401,6 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
             )}
           </div>
 
-          {/* Section 2: Inbound Student Assignments Submission Inbox */}
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="p-4 sm:p-5 border-b border-slate-100">
               <h3 className="text-sm font-black text-slate-700 uppercase tracking-wider">📥 Inbound Submissions Received</h3>
@@ -449,10 +453,8 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
               </div>
             )}
           </div>
-
         </div>
 
-        {/* Form Container: Broadcast New Assignment Task Sheet */}
         <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-sm h-fit space-y-4">
           <div>
             <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Broadcast New Task</h3>
@@ -494,7 +496,7 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
 
             <button
               type="submit"
-              disabled={isUploading || !selectedClass}
+              disabled={isUploading}
               className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold text-sm py-3 rounded-xl transition-all shadow-md cursor-pointer"
             >
               {isUploading ? "Uploading Instructions..." : "🚀 Send Assignment"}
@@ -503,7 +505,6 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
         </div>
       </div>
 
-      {/* Evaluation Grading Popup Overlay Modal */}
       {selectedStudent && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white rounded-[2rem] border-8 border-indigo-950/10 max-w-md w-full overflow-hidden shadow-2xl my-auto">

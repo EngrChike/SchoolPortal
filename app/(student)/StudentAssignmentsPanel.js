@@ -14,13 +14,13 @@ export default function StudentAssignmentsPanel({
         <h3 className="text-base font-black text-slate-800 tracking-tight">Active Assignment Pipelines</h3>
         <p className="text-xs text-slate-400 mt-0.5">Task sheets distributed by faculty for your registered coursework units.</p>
       </div>
-      {performanceRecords.length === 0 ? (
+      {(!performanceRecords || performanceRecords.length === 0) ? (
         <div className="text-center py-12">
           <div className="h-12 w-12 bg-amber-50 text-amber-500 rounded-xl flex items-center justify-center mx-auto mb-4 text-xl">📂</div>
           <h3 className="text-sm font-bold text-slate-700">No Assessment Task Profiles Formed</h3>
           <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1">Register courses inside the enrollment hub to automatically mount distinct continuous task paths here.</p>
         </div>
-      ) : courseAssignments.length === 0 ? (
+      ) : (!courseAssignments || courseAssignments.length === 0) ? (
         <p className="text-sm font-medium text-slate-400 text-center py-8">No published tasks uploaded by instructors for your registered modules yet.</p>
       ) : (
         <div className="space-y-4">
@@ -30,7 +30,7 @@ export default function StudentAssignmentsPanel({
               <div key={asm.id} className="p-4 sm:p-5 bg-slate-50/50 border border-slate-200/60 rounded-2xl flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div className="space-y-1 min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs font-mono font-bold text-indigo-600 uppercase tracking-wider">{asm.courses?.code}</span>
+                    <span className="text-xs font-mono font-bold text-indigo-600 uppercase tracking-wider">{asm.courses?.code || "COURSE"}</span>
                     <span className={`text-[9px] px-2 py-0.5 rounded font-black uppercase ${asm.hasSubmitted ? "bg-emerald-100 text-emerald-800" : timer.isExpired ? "bg-rose-100 text-rose-800" : "bg-amber-100 text-amber-800"}`}>
                       {asm.hasSubmitted ? "Turned In" : timer.isExpired ? "Terminated" : "Pending Action"}
                     </span>
