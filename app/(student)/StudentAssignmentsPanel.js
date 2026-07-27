@@ -1,15 +1,69 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { supabase } from "../../../../lib/supabaseClient";
 
 export default function StudentAssignmentsPanel({
   performanceRecords,
   courseAssignments,
+  selectedAssignment,
   setSelectedAssignment,
-  assignmentTimers
+  assignmentTimers,
+  studentProfile,
+  onSubmissionSuccess
 }) {
+  const [uploadFile, setUploadFile] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  async function handleTurnInAssignment(e) {
+    e.preventDefault();
+    if (!selectedAssignment || !uploadFile) {
+      alert("Please select a file document to upload.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const fileExt = uploadFile.name.split(".").pop();
+      const safeStudentName = (studentProfile?.name || "student").replace(/\s+/g, "_");
+      const safeFileName = `submission_${safeStudentName}_${selectedAssignment.id}_${Date.now()}.${fileExt}`;
+
+      // 1. Upload completed solution file to Supabase Storage (using 'assignments' or your preferred bucket)
+      const { error: uploadErr } = await supabase.storage
+        .from("assignments")
+        .upload(safeFileName, uploadFile, { cacheControl: "3600", upsert: true });
+
+      if (uploadErr) throw uploadErr;
+
+      const { data: urlData } = supabase.storage.from("assignments").getPublicUrl(safeFileName);
+      const publicFileUrl = urlData.publicUrl;
+
+      // 2. Save submission record into the database table
+      const { error: dbErr } = await supabase
+        .from("assignment_submissions")
+        .insert({
+          assignment_id: selectedAssignment.id,
+          student_email: (studentProfile?.email || "").trim().toLowerCase(),
+          student_name: studentProfile?.name || "Student",
+          passport_url: studentProfile?.passport_url || null,
+          file_url: publicFileUrl
+        });
+
+      if (dbErr) throw dbErr;
+
+      alert("🎉 Assignment successfully turned in to your instructor!");
+      setSelectedAssignment(null);
+      setUploadFile(null);
+      if (onSubmissionSuccess) onSubmissionSuccess();
+    } catch (err) {
+      alert("Turn-In Error: " + err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   return (
-    <div className="bg-white p-5 sm:p-6 md:p-8 rounded-3xl sm:rounded-[2rem] border border-slate-100 shadow-sm no-print-wrapper">
+    <div className="bg-white p-5 sm:p-6 md:p-8 rounded-3xl sm:rounded-[2rem] border border-slate-100 shadow-sm no-print-wrapper relative">
       <div className="mb-6">
         <h3 className="text-base font-black text-slate-800 tracking-tight">Active Assignment Pipelines</h3>
         <p className="text-xs text-slate-400 mt-0.5">Task sheets distributed by faculty for your registered coursework units.</p>
@@ -57,6 +111,41 @@ export default function StudentAssignmentsPanel({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Submission Upload Modal Popup */}
+      {selectedAssignment && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-[2rem] border-8 border-indigo-950/10 max-w-md w-full overflow-hidden shadow-2xl my-auto">
+            <div className="p-4 sm:p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <div>
+                <h3 className="font-black text-slate-800 text-base">Submit Task Solution</h3>
+                <p className="text-[11px] font-mono text-indigo-600 font-bold mt-0.5 truncate max-w-[260px]">{selectedAssignment.title}</p>
+              </div>
+              <button type="button" onClick={() => setSelectedAssignment(null)} className="text-slate-400 hover:text-slate-600 text-2xl p-1 cursor-pointer">×</button>
+            </div>
+
+            <form onSubmit={handleTurnInAssignment} className="p-4 sm:p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold uppercase text-slate-400 tracking-wider mb-1.5">Select Completed Assignment File</label>
+                <input
+                  type="file"
+                  required
+                  onChange={(e) => setUploadFile(e.target.files[0])}
+                  className="w-full text-xs text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 border border-slate-200 p-2 rounded-xl bg-slate-50/50"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">Upload your finished document sheet (PDF, Word, or Image scan).</p>
+              </div>
+
+              <div className="flex gap-3 pt-4 border-t border-slate-100 mt-6">
+                <button type="button" onClick={() => setSelectedAssignment(null)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-sm py-3 rounded-xl transition-colors cursor-pointer">Cancel</button>
+                <button type="submit" disabled={isSubmitting} className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold text-sm py-3 rounded-xl shadow-md transition-colors cursor-pointer">
+                  {isSubmitting ? "Submitting..." : "🚀 Turn In Task"}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>
