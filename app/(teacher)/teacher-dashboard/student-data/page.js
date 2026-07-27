@@ -259,14 +259,13 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
     try {
       let activeCourseId = currentCourseId;
 
-      // Auto-create a course record in Supabase if one doesn't exist yet for this class tier
+      // Auto-create a course record in Supabase using safe default columns
       if (!activeCourseId) {
         const { data: newCourse, error: courseErr } = await supabase
           .from("courses")
           .insert({
             code: `${selectedClass}_${activeProfile?.subject || "SUB"}`.toUpperCase(),
             title: `${activeProfile?.subject || "Subject"} for ${selectedClass}`,
-            school_level_tier: selectedClass,
           })
           .select("id")
           .single();
