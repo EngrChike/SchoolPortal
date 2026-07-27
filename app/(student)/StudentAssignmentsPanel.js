@@ -1,23 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import { supabase } from "../../lib/supabaseClient";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function StudentAssignmentsPanel({
   performanceRecords,
   courseAssignments,
-  selectedAssignment,
-  setSelectedAssignment,
-  assignmentTimers,
+  assignmentTimers = {},
   studentProfile,
   onSubmissionSuccess
 }) {
+  const [activeModalAssignment, setActiveModalAssignment] = useState(null);
   const [uploadFile, setUploadFile] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleTurnInAssignment(e) {
     e.preventDefault();
-    if (!selectedAssignment || !uploadFile) {
+    if (!activeModalAssignment || !uploadFile) {
       alert("Please select a file document to upload.");
       return;
     }
@@ -26,9 +25,8 @@ export default function StudentAssignmentsPanel({
     try {
       const fileExt = uploadFile.name.split(".").pop();
       const safeStudentName = (studentProfile?.name || "student").replace(/\s+/g, "_");
-      const safeFileName = `submission_${safeStudentName}_${selectedAssignment.id}_${Date.now()}.${fileExt}`;
+      const safeFileName = `submission_${safeStudentName}_${activeModalAssignment.id}_${Date.now()}.${fileExt}`;
 
-      // 1. Upload completed solution file to Supabase Storage (using 'assignments' or your preferred bucket)
       const { error: uploadErr } = await supabase.storage
         .from("assignments")
         .upload(safeFileName, uploadFile, { cacheControl: "3600", upsert: true });
@@ -38,11 +36,10 @@ export default function StudentAssignmentsPanel({
       const { data: urlData } = supabase.storage.from("assignments").getPublicUrl(safeFileName);
       const publicFileUrl = urlData.publicUrl;
 
-      // 2. Save submission record into the database table
       const { error: dbErr } = await supabase
         .from("assignment_submissions")
         .insert({
-          assignment_id: selectedAssignment.id,
+          assignment_id: activeModalAssignment.id,
           student_email: (studentProfile?.email || "").trim().toLowerCase(),
           student_name: studentProfile?.name || "Student",
           passport_url: studentProfile?.passport_url || null,
@@ -52,7 +49,7 @@ export default function StudentAssignmentsPanel({
       if (dbErr) throw dbErr;
 
       alert("🎉 Assignment successfully turned in to your instructor!");
-      setSelectedAssignment(null);
+      setActiveModalAssignment(null);
       setUploadFile(null);
       if (onSubmissionSuccess) onSubmissionSuccess();
     } catch (err) {
@@ -103,7 +100,12 @@ export default function StudentAssignmentsPanel({
                   {asm.hasSubmitted ? (
                     <a href={asm.submittedFileUrl} target="_blank" rel="noreferrer" className="flex-1 sm:flex-none text-center bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold text-xs px-3.5 py-2.5 rounded-xl transition-all">📁 View Turn-In</a>
                   ) : (
-                    <button type="button" disabled={timer.isExpired} onClick={() => setSelectedAssignment(asm)} className={`flex-1 sm:flex-none font-bold text-xs px-3.5 py-2.5 rounded-xl transition-all shadow-md items-center justify-center cursor-pointer ${timer.isExpired ? "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none" : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-100"}`}>
+                    <button 
+                      type="button" 
+                      disabled={timer.isExpired} 
+                      onClick={() => setActiveModalAssignment(asm)} 
+                      className={`flex-1 sm:flex-none font-bold text-xs px-3.5 py-2.5 rounded-xl transition-all shadow-md items-center justify-center cursor-pointer ${timer.isExpired ? "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none" : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-100"}`}
+                    >
                       {timer.isExpired ? "🔒 Locked" : "📤 Upload Task"}
                     </button>
                   )}
@@ -115,15 +117,15 @@ export default function StudentAssignmentsPanel({
       )}
 
       {/* Submission Upload Modal Popup */}
-      {selectedAssignment && (
+      {activeModalAssignment && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white rounded-[2rem] border-8 border-indigo-950/10 max-w-md w-full overflow-hidden shadow-2xl my-auto">
             <div className="p-4 sm:p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
               <div>
                 <h3 className="font-black text-slate-800 text-base">Submit Task Solution</h3>
-                <p className="text-[11px] font-mono text-indigo-600 font-bold mt-0.5 truncate max-w-[260px]">{selectedAssignment.title}</p>
+                <p className="text-[11px] font-mono text-indigo-600 font-bold mt-0.5 truncate max-w-[260px]">{activeModalAssignment.title}</p>
               </div>
-              <button type="button" onClick={() => setSelectedAssignment(null)} className="text-slate-400 hover:text-slate-600 text-2xl p-1 cursor-pointer">×</button>
+              <button type="button" onClick={() => setActiveModalAssignment(null)} className="text-slate-400 hover:text-slate-600 text-2xl p-1 cursor-pointer">×</button>
             </div>
 
             <form onSubmit={handleTurnInAssignment} className="p-4 sm:p-6 space-y-4">
@@ -139,7 +141,7 @@ export default function StudentAssignmentsPanel({
               </div>
 
               <div className="flex gap-3 pt-4 border-t border-slate-100 mt-6">
-                <button type="button" onClick={() => setSelectedAssignment(null)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-sm py-3 rounded-xl transition-colors cursor-pointer">Cancel</button>
+                <button type="button" onClick={() => setActiveModalAssignment(null)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-sm py-3 rounded-xl transition-colors cursor-pointer">Cancel</button>
                 <button type="submit" disabled={isSubmitting} className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold text-sm py-3 rounded-xl shadow-md transition-colors cursor-pointer">
                   {isSubmitting ? "Submitting..." : "🚀 Turn In Task"}
                 </button>

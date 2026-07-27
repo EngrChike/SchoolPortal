@@ -56,7 +56,7 @@ export default function StudentDashboard() {
   const [dbResultPin, setDbResultPin] = useState("");
 
   // Helper Function to Fetch Existing Course Registrations & Live Grades
-  async function fetchRegistrationsAndGrades(studentEmail) {
+  async function fetchRegistrationsAndGrades(studentEmail, studentSectionTier, studentClassTier) {
     const { data: registrations, error: regErr } = await supabase
       .from("course_registrations")
       .select(`
@@ -81,14 +81,10 @@ export default function StudentDashboard() {
       setPerformanceRecords(registrations);
 
       evaluateJssProgression(registrations);
-
-      if (registrations.length > 0) {
-        const courseIds = registrations.map(r => r.course_id);
-        await fetchAssignmentsAndSubmissions(courseIds, studentEmail);
-      } else {
-        setCourseAssignments([]);
-      }
     }
+
+    // Fetch assignments class-wide so all students see published tasks instantly
+    await fetchAssignmentsAndSubmissions(studentEmail, studentSectionTier, studentClassTier);
   }
 
   function evaluateJssProgression(registrations) {
@@ -116,8 +112,9 @@ export default function StudentDashboard() {
     }
   }
 
-  async function fetchAssignmentsAndSubmissions(courseIds, studentEmail) {
+  async function fetchAssignmentsAndSubmissions(studentEmail, studentSectionTier, studentClassTier) {
     try {
+      // Fetch all assignments along with their associated courses and section info
       const { data: assignments, error: assignErr } = await supabase
         .from("assignments")
         .select(`
@@ -126,9 +123,8 @@ export default function StudentDashboard() {
           file_url,
           course_id,
           created_at,
-          courses:course_id (name, code)
+          courses:course_id (name, code, section)
         `)
-        .in("course_id", courseIds)
         .order("created_at", { ascending: false });
 
       if (assignErr) throw assignErr;
@@ -141,11 +137,22 @@ export default function StudentDashboard() {
       if (subErr) throw subErr;
 
       const submittedMap = new Map(submissions?.map(s => [s.assignment_id, s.file_url]) || []);
-      const structuredAssignments = (assignments || []).map(asm => ({
+      
+      // Filter assignments so that every student matching the class/section level sees them
+      const studentTierClean = (studentClassTier || studentSectionTier || "").trim().toUpperCase();
+      
+      const filteredAssignments = (assignments || []).filter(asm => {
+        const courseSec = (asm.courses?.section || "").trim().toUpperCase();
+        if (!courseSec || !studentTierClean) return true;
+        return courseSec === studentTierClean || studentTierClean.includes(courseSec) || courseSec.includes(studentTierClean);
+      });
+
+      const structuredAssignments = filteredAssignments.map(asm => ({
         ...asm,
         hasSubmitted: submittedMap.has(asm.id),
         submittedFileUrl: submittedMap.get(asm.id) || null
       }));
+
       setCourseAssignments(structuredAssignments);
     } catch (err) {
       console.error("Error setting assignment array context: ", err.message);
@@ -204,64 +211,68 @@ export default function StudentDashboard() {
     return () => clearInterval(timerInterval);
   }, [courseAssignments]);
 
-  useEffect(() => {
-    async function loadStudentWorkspace() {
-      try {
-        const loggedInUser = localStorage.getItem("active_student_email");
-        if (!loggedInUser) {
-          router.push("/login");
-          return;
-        }
-
-        const cleanEmail = loggedInUser.trim().toLowerCase();
-        setCurrentStudentEmail(cleanEmail);
-
-        const { data: student, error: studentErr } = await supabase
-          .from("students")
-          .select("*")
-          .eq("email", cleanEmail)
-          .maybeSingle();
-
-        if (studentErr) throw studentErr;
-
-        let activeSection = null;
-
-        if (student) {
-          setFullName(student.name || "");
-          setRegNumber(student.reg_number || "");
-          setPhone(student.phone || "");
-          setGender(student.gender || "");
-          setDob(student.dob || "");
-          setParentName(student.parent_name || "");
-          setParentPhone(student.parent_phone || "");
-          setDbResultPin(student.result_pin || "");
-          
-          setStudentSection(student.section || "Unassigned");
-          setClassLevel(student.class_level || student.level || "Unassigned");
-          activeSection = student.section;
-          if (student.passport_url) {
-            setSavedPassportUrl(student.passport_url);
-            setPassportPreview(student.passport_url);
-          }
-        }
-
-        let courseQuery = supabase.from("courses").select("*");
-        if (activeSection) {
-          courseQuery = courseQuery.eq("section", activeSection);
-        }
-        
-        const { data: courses, error: courseErr } = await courseQuery;
-        if (courseErr) throw courseErr;
-        setAvailableCourses(courses || []);
-
-        await fetchRegistrationsAndGrades(cleanEmail);
-        await fetchInstitutionalSettings();
-      } catch (err) {
-        alert("Workspace Sync Error: " + err.message);
-      } finally {
-        setLoading(false);
+  const loadStudentWorkspace = async () => {
+    try {
+      const loggedInUser = localStorage.getItem("active_student_email");
+      if (!loggedInUser) {
+        router.push("/login");
+        return;
       }
+
+      const cleanEmail = loggedInUser.trim().toLowerCase();
+      setCurrentStudentEmail(cleanEmail);
+
+      const { data: student, error: studentErr } = await supabase
+        .from("students")
+        .select("*")
+        .eq("email", cleanEmail)
+        .maybeSingle();
+
+      if (studentErr) throw studentErr;
+
+      let activeSection = null;
+      let activeClassLevel = "Unassigned";
+
+      if (student) {
+        setFullName(student.name || "");
+        setRegNumber(student.reg_number || "");
+        setPhone(student.phone || "");
+        setGender(student.gender || "");
+        setDob(student.dob || "");
+        setParentName(student.parent_name || "");
+        setParentPhone(student.parent_phone || "");
+        setDbResultPin(student.result_pin || "");
+        
+        setStudentSection(student.section || "Unassigned");
+        activeClassLevel = student.class_level || student.level || "Unassigned";
+        setClassLevel(activeClassLevel);
+        
+        activeSection = student.section;
+        if (student.passport_url) {
+          setSavedPassportUrl(student.passport_url);
+          setPassportPreview(student.passport_url);
+        }
+      }
+
+      let courseQuery = supabase.from("courses").select("*");
+      if (activeSection) {
+        courseQuery = courseQuery.eq("section", activeSection);
+      }
+      
+      const { data: courses, error: courseErr } = await courseQuery;
+      if (courseErr) throw courseErr;
+      setAvailableCourses(courses || []);
+
+      await fetchRegistrationsAndGrades(cleanEmail, activeSection, activeClassLevel);
+      await fetchInstitutionalSettings();
+    } catch (err) {
+      alert("Workspace Sync Error: " + err.message);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  useEffect(() => {
     loadStudentWorkspace();
   }, [router]);
 
@@ -284,6 +295,14 @@ export default function StudentDashboard() {
       </div>
     );
   }
+
+  const studentProfileData = {
+    name: fullName,
+    email: currentStudentEmail,
+    passport_url: savedPassportUrl,
+    class_level: classLevel,
+    section: studentSection
+  };
 
   return (
     <div className="min-h-screen bg-slate-50/60 p-3 sm:p-4 md:p-8 font-sans print:p-0 print:bg-white overflow-x-hidden">
@@ -365,7 +384,7 @@ export default function StudentDashboard() {
               performanceRecords={performanceRecords}
               isJss2Unlocked={isJss2Unlocked}
               isJss3ToSs1Transitioned={isJss3ToSs1Transitioned}
-              refreshRegistrations={fetchRegistrationsAndGrades}
+              refreshRegistrations={(email) => fetchRegistrationsAndGrades(email, studentSection, classLevel)}
             />
           )}
 
@@ -374,8 +393,9 @@ export default function StudentDashboard() {
             <StudentAssignmentsPanel
               performanceRecords={performanceRecords}
               courseAssignments={courseAssignments}
-              setSelectedAssignment={setSelectedAssignment}
               assignmentTimers={assignmentTimers}
+              studentProfile={studentProfileData}
+              onSubmissionSuccess={loadStudentWorkspace}
             />
           )}
 
