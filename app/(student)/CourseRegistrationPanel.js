@@ -82,39 +82,49 @@ export default function CourseRegistrationPanel({
     }
   }
 
-  // Derive unique courses dynamically from teachers matching the selected tier
+  // Derive unique courses dynamically from teachers matching the selected tier or class
   const derivedAvailableCourses = [];
   const seenCourseCodes = new Set();
 
-  const activeTierKey = selectedSchoolLevelTier.toLowerCase().includes("primary") ? "primary" : "secondary";
+  const activeTierKey = selectedSchoolLevelTier.toLowerCase();
 
   teachersList.forEach((teacher) => {
-    // Only look at teachers matching the school tier track (or general/all)
     const teacherTier = (teacher.school_tier || "secondary").toLowerCase();
-    if (teacherTier === activeTierKey) {
+    const assignedClasses = teacher.assigned_classes || [];
+    
+    // Clean classes array (stripping out asterisk or brackets if stored as [*jss1] or similar)
+    const cleanedClasses = assignedClasses.map(c => c.replace(/[*\[\]"]/g, "").trim().toLowerCase());
+    
+    // Match either by overall school tier track or direct class assignment match
+    const matchesTier = teacherTier.includes(activeTierKey) || activeTierKey.includes(teacherTier);
+    const matchesClass = cleanedClasses.includes(activeTierKey) || cleanedClasses.some(c => activeTierKey.includes(c));
+
+    if (matchesTier || matchesClass) {
       const subjects = teacher.assigned_subjects || [];
       subjects.forEach((code) => {
-        const cleanCode = code.trim().toUpperCase();
+        const cleanCode = code.replace(/[*\[\]"]/g, "").trim().toUpperCase();
         if (cleanCode && !seenCourseCodes.has(cleanCode)) {
           seenCourseCodes.add(cleanCode);
           derivedAvailableCourses.push({
             id: cleanCode,
             code: cleanCode,
             title: subjectTitleMap[cleanCode] || cleanCode,
-            teacher_name: teacher.name || "Assigned Faculty"
+            teacher_name: teacher.name || "Assigned Faculty",
+            teacher_id: teacher.teacher_id
           });
         }
       });
 
-      // Also account for legacy/single specialization field if present
-      const spec = (teacher.subject_specialization || "").trim().toUpperCase();
+      // Account for single specialization field if present
+      const spec = (teacher.subject_specialization || "").replace(/[*\[\]"]/g, "").trim().toUpperCase();
       if (spec && !seenCourseCodes.has(spec)) {
         seenCourseCodes.add(spec);
         derivedAvailableCourses.push({
           id: spec,
           code: spec,
           title: subjectTitleMap[spec] || spec,
-          teacher_name: teacher.name || "Assigned Faculty"
+          teacher_name: teacher.name || "Assigned Faculty",
+          teacher_id: teacher.teacher_id
         });
       }
     }
@@ -122,12 +132,12 @@ export default function CourseRegistrationPanel({
 
   // Dynamically map assigned teacher for a specific course code from the teacher roster
   function getAssignedTeacherForCourseCode(courseCode) {
-    const target = (courseCode || "").trim().toUpperCase();
+    const target = (courseCode || "").replace(/[*\[\]"]/g, "").trim().toUpperCase();
     const matched = teachersList.find((teacher) => {
       const assigned = teacher.assigned_subjects || [];
-      const spec = (teacher.subject_specialization || "").trim().toUpperCase();
+      const spec = (teacher.subject_specialization || "").replace(/[*\[\]"]/g, "").trim().toUpperCase();
       return (
-        assigned.some((s) => s.trim().toUpperCase() === target) ||
+        assigned.some((s) => s.replace(/[*\[\]"]/g, "").trim().toUpperCase() === target) ||
         spec === target
       );
     });
@@ -149,7 +159,8 @@ export default function CourseRegistrationPanel({
         student_email: currentStudentEmail,
         course_id: course.id,
         school_term: selectedTermFolder,
-        school_level_tier: selectedSchoolLevelTier
+        school_level_tier: selectedSchoolLevelTier,
+        teacher_id: course.teacher_id || null
       }));
 
       const { error: regError } = await supabase
