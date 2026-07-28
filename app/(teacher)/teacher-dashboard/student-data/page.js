@@ -82,7 +82,7 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
 
   // 3. Automatically sync data layers whenever the teacher flips classes
   useEffect(() => {
-    if (teacherEmail && selectedClass && (currentTeacher || teacherProfile)) {
+    if (teacherEmail && selectedClass) {
       fetchClassWorkspaceData();
     }
   }, [selectedClass, teacherEmail, teacherProfile, currentTeacher]);
@@ -90,26 +90,33 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
   async function fetchClassWorkspaceData() {
     try {
       setCurrentCourseId(null);
+      const activeProfile = currentTeacher || teacherProfile;
+      const cleanEmail = (teacherEmail || activeProfile?.email || "").trim().toLowerCase();
       
       const normalizedSelectedClass = (selectedClass || "").replace(/[\s_]/g, "").toUpperCase();
 
-      // --- STEP A: ENSURE WE HAVE A VALID COURSE ID FOR THIS CLASS LAYER ---
+      // --- STEP A: FIND OR TARGET THE EXACT COURSE FOR *THIS* TEACHER AND *THIS* CLASS ---
       const { data: coursesData } = await supabase
         .from("courses")
         .select("id, code, name, section, teacher_email");
 
       let resolvedCourseId = null;
       if (coursesData && coursesData.length > 0) {
+        // Try to find a course matching both the section AND the logged-in teacher's email
         const matchingCourse = coursesData.find(c => {
           const cSection = (c.section || c.code || "").replace(/[\s_]/g, "").toUpperCase();
-          return cSection === normalizedSelectedClass || cSection.includes(normalizedSelectedClass) || normalizedSelectedClass.includes(cSection);
+          const cTeacher = (c.teacher_email || "").trim().toLowerCase();
+          const isSectionMatch = cSection === normalizedSelectedClass || cSection.includes(normalizedSelectedClass) || normalizedSelectedClass.includes(cSection);
+          const isTeacherMatch = cleanEmail && cTeacher === cleanEmail;
+          return isSectionMatch && isTeacherMatch;
         });
+
         if (matchingCourse) {
           resolvedCourseId = matchingCourse.id;
           setCurrentCourseId(matchingCourse.id);
         } else {
-          resolvedCourseId = coursesData[0].id;
-          setCurrentCourseId(coursesData[0].id);
+          // Fallback: If no dedicated course row exists yet for this teacher+class combo, keep it null so it auto-creates on action
+          setCurrentCourseId(null);
         }
       }
 
@@ -125,18 +132,21 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
         return studentClass === normalizedSelectedClass || studentClass.includes(normalizedSelectedClass) || normalizedSelectedClass.includes(studentClass);
       });
 
-      // --- STEP C: FETCH COURSE REGISTRATIONS TO PULL EXISTING SCORES ---
-      const { data: registrationRecords } = await supabase
-        .from("course_registrations")
-        .select("id, course_id, continuous_assessment, mid_semester, final_exam, student_email, students(id, email)");
+      // --- STEP C: FETCH COURSE REGISTRATIONS SPECIFIC TO THIS RESOLVED COURSE ID ---
+      let regMap = new Map();
+      if (resolvedCourseId) {
+        const { data: registrationRecords } = await supabase
+          .from("course_registrations")
+          .select("id, course_id, continuous_assessment, mid_semester, final_exam, student_email, students(id, email)")
+          .eq("course_id", resolvedCourseId);
 
-      const regMap = new Map();
-      (registrationRecords || []).forEach(reg => {
-        const emailKey = (reg.student_email || reg.students?.email || "").trim().toLowerCase();
-        if (emailKey) {
-          regMap.set(emailKey, reg);
-        }
-      });
+        (registrationRecords || []).forEach(reg => {
+          const emailKey = (reg.student_email || reg.students?.email || "").trim().toLowerCase();
+          if (emailKey) {
+            regMap.set(emailKey, reg);
+          }
+        });
+      }
 
       const processedRoster = classStudents.map(student => {
         const studentEmailClean = (student.email || "").trim().toLowerCase();
@@ -157,27 +167,32 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
       setStudents(processedRoster);
       const classStudentEmails = new Set(processedRoster.map(s => s.email));
 
-      // --- STEP D: FETCH SUBMISSIONS ---
-      const { data: subData } = await supabase
-        .from("assignment_submissions")
-        .select(`
-          id,
-          assignment_id,
-          student_email,
-          student_name,
-          passport_url,
-          file_url,
-          created_at,
-          assignments(
-            title,
-            course_id
-          )
-        `)
-        .order("created_at", { ascending: false });
+      // --- STEP D: FETCH SUBMISSIONS STRICTLY FOR THIS TEACHER'S ASSIGNMENTS ---
+      let filteredSubmissions = [];
+      if (resolvedCourseId) {
+        const { data: subData } = await supabase
+          .from("assignment_submissions")
+          .select(`
+            id,
+            assignment_id,
+            student_email,
+            student_name,
+            passport_url,
+            file_url,
+            created_at,
+            assignments!inner(
+              title,
+              course_id,
+              teacher_email
+            )
+          `)
+          .eq("assignments.course_id", resolvedCourseId)
+          .order("created_at", { ascending: false });
 
-      const filteredSubmissions = (subData || []).filter(sub => {
-        return classStudentEmails.has((sub.student_email || "").trim().toLowerCase());
-      });
+        filteredSubmissions = (subData || []).filter(sub => {
+          return classStudentEmails.has((sub.student_email || "").trim().toLowerCase());
+        });
+      }
 
       setSubmissions(filteredSubmissions);
 
@@ -200,11 +215,33 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
     setIsSaving(true);
 
     try {
+      let activeCourseId = currentCourseId;
+      const activeProfile = currentTeacher || teacherProfile;
+      const cleanEmail = (teacherEmail || activeProfile?.email || "").trim().toLowerCase();
+
+      // Ensure course exists before recording grades
+      if (!activeCourseId) {
+        const { data: newCourse, error: courseErr } = await supabase
+          .from("courses")
+          .insert({
+            code: `${selectedClass}_${activeProfile?.subject || "SUB"}`.toUpperCase(),
+            name: `${activeProfile?.subject || "Subject"} for ${selectedClass}`,
+            section: selectedClass,
+            teacher_email: cleanEmail
+          })
+          .select("id")
+          .single();
+
+        if (courseErr) throw new Error("Could not initialize course track: " + courseErr.message);
+        activeCourseId = newCourse.id;
+        setCurrentCourseId(activeCourseId);
+      }
+
       const { data: existingReg } = await supabase
         .from("course_registrations")
         .select("id")
         .eq("student_email", selectedStudent.email)
-        .eq("course_id", currentCourseId)
+        .eq("course_id", activeCourseId)
         .maybeSingle();
 
       if (existingReg) {
@@ -222,7 +259,7 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
           .from("course_registrations")
           .insert({
             student_email: selectedStudent.email,
-            course_id: Number(currentCourseId),
+            course_id: Number(activeCourseId),
             continuous_assessment: Number(scores.assignment),
             mid_semester: Number(scores.test),
             final_exam: Number(scores.exam),
@@ -232,7 +269,7 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
 
       setSelectedStudent(null);
       fetchClassWorkspaceData(); 
-      alert("✨ Marks uploaded successfully! Student can now view this on their Results Matrix.");
+      alert("✨ Marks uploaded successfully for your subject dashboard!");
     } catch (err) {
       alert("Could not process updates: " + err.message);
     } finally {
@@ -240,10 +277,11 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
     }
   }
 
-  // 5. Upload and send assignments out to the selected class with auto-course creation fallback matching your table columns
+  // 5. Upload and send assignments out tied to the specific teacher's course
   async function handleUploadAssignment(e) {
     e.preventDefault();
     const activeProfile = currentTeacher || teacherProfile;
+    const cleanEmail = (teacherEmail || activeProfile?.email || "").trim().toLowerCase();
     
     if (!selectedClass) {
       alert("Please select an active target class room layer first.");
@@ -258,7 +296,6 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
     try {
       let activeCourseId = currentCourseId;
 
-      // Auto-create matching your exact public.courses schema (code, name, section, teacher_email)
       if (!activeCourseId) {
         const { data: newCourse, error: courseErr } = await supabase
           .from("courses")
@@ -266,7 +303,7 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
             code: `${selectedClass}_${activeProfile?.subject || "SUB"}`.toUpperCase(),
             name: `${activeProfile?.subject || "Subject"} for ${selectedClass}`,
             section: selectedClass,
-            teacher_email: teacherEmail.trim().toLowerCase()
+            teacher_email: cleanEmail
           })
           .select("id")
           .single();
@@ -295,7 +332,7 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
           title: assignmentTitle.trim(),
           file_url: publicFileUrl,
           course_id: Number(activeCourseId),
-          teacher_email: teacherEmail.trim().toLowerCase(),
+          teacher_email: cleanEmail,
           deadline: assignmentDeadline ? new Date(assignmentDeadline).toISOString() : null
         });
 
@@ -305,7 +342,7 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
       setAssignmentDeadline("");
       setAssignmentFile(null);
       e.target.reset();
-      alert("🚀 Assignment distributed live to all students in this class course track!");
+      alert("🚀 Assignment distributed live for your subject track!");
       fetchClassWorkspaceData();
     } catch (err) {
       alert("Broadcast Error: " + err.message);
@@ -353,7 +390,7 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-slate-50/20">
               <h3 className="text-sm font-black text-slate-700 uppercase tracking-wider">
-                Classroom Mark Sheets ({selectedClass ? selectedClass.replace("_", " ") : "N/A"})
+                Classroom Mark Sheets ({selectedClass ? selectedClass.replace("_", " ") : "N/A"}) - {displayedProfile?.subject || "Subject"}
               </h3>
               <span className="bg-blue-50 border border-blue-100 text-blue-700 text-[11px] px-2.5 py-0.5 rounded-full font-bold font-mono">
                 {students.length} Registered
@@ -404,7 +441,7 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="p-4 sm:p-5 border-b border-slate-100">
               <h3 className="text-sm font-black text-slate-700 uppercase tracking-wider">📥 Inbound Submissions Received</h3>
-              <p className="text-xs text-slate-400 mt-0.5">Completed task solutions submitted back live by students.</p>
+              <p className="text-xs text-slate-400 mt-0.5">Completed task solutions submitted back live by students for your subject.</p>
             </div>
             {submissions.length === 0 ? (
               <div className="p-12 text-center text-slate-400 text-sm font-medium">No returned assignments for this selection tier channel yet.</div>
