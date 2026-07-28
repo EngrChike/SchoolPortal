@@ -8,32 +8,24 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
   const [teacherEmail, setTeacherEmail] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   
-  // Active classroom level (e.g., 'JSS1')
   const [selectedClass, setSelectedClass] = useState(""); 
-  
-  // State Arrays for Lists
   const [students, setStudents] = useState([]);
   const [submissions, setSubmissions] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
-
-  // Fallback state to keep track of the current class's course id context safely
   const [currentCourseId, setCurrentCourseId] = useState(null);
 
-  // Assignment Creation Form States
   const [assignmentTitle, setAssignmentTitle] = useState("");
   const [assignmentDeadline, setAssignmentDeadline] = useState("");
   const [assignmentFile, setAssignmentFile] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
 
-  // Grading Form Metrics
   const [scores, setScores] = useState({
     assignment: 0,
     test: 0,
     exam: 0,
   });
 
-  // 1. Sync prop profile to state or fall back to native session loader
   useEffect(() => {
     if (currentTeacher) {
       setTeacherProfile(currentTeacher);
@@ -53,7 +45,6 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
     }
   }, [currentTeacher]);
 
-  // 2. Fetch Teacher Profile Configuration Meta-data
   async function loadTeacherProfile(email) {
     try {
       setIsLoading(true);
@@ -80,7 +71,6 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
     }
   }
 
-  // 3. Automatically sync data layers whenever the teacher flips classes
   useEffect(() => {
     if (teacherEmail && selectedClass) {
       fetchClassWorkspaceData();
@@ -92,21 +82,19 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
       setCurrentCourseId(null);
       const activeProfile = currentTeacher || teacherProfile;
       const cleanEmail = (teacherEmail || activeProfile?.email || "").trim().toLowerCase();
-      
       const normalizedSelectedClass = (selectedClass || "").replace(/[\s_]/g, "").toUpperCase();
 
-      // --- STEP A: FIND OR TARGET THE EXACT COURSE FOR *THIS* TEACHER AND *THIS* CLASS ---
+      // Fetch all courses matching this teacher's email & class level
       const { data: coursesData } = await supabase
         .from("courses")
         .select("id, code, name, section, teacher_email");
 
       let resolvedCourseId = null;
       if (coursesData && coursesData.length > 0) {
-        // Try to find a course matching both the section AND the logged-in teacher's email
         const matchingCourse = coursesData.find(c => {
-          const cSection = (c.section || c.code || "").replace(/[\s_]/g, "").toUpperCase();
+          const cSection = (c.section || "").replace(/[\s_]/g, "").toUpperCase();
           const cTeacher = (c.teacher_email || "").trim().toLowerCase();
-          const isSectionMatch = cSection === normalizedSelectedClass || cSection.includes(normalizedSelectedClass) || normalizedSelectedClass.includes(cSection);
+          const isSectionMatch = cSection === normalizedSelectedClass;
           const isTeacherMatch = cleanEmail && cTeacher === cleanEmail;
           return isSectionMatch && isTeacherMatch;
         });
@@ -114,13 +102,10 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
         if (matchingCourse) {
           resolvedCourseId = matchingCourse.id;
           setCurrentCourseId(matchingCourse.id);
-        } else {
-          // Fallback: If no dedicated course row exists yet for this teacher+class combo, keep it null so it auto-creates on action
-          setCurrentCourseId(null);
         }
       }
 
-      // --- STEP B: FETCH ALL STUDENTS IN THE SYSTEM ---
+      // Fetch all students in the system
       const { data: allStudents, error: studentsErr } = await supabase
         .from("students")
         .select("id, name, email, class_level");
@@ -129,10 +114,10 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
 
       const classStudents = (allStudents || []).filter(student => {
         const studentClass = (student.class_level || "").replace(/[\s_]/g, "").toUpperCase();
-        return studentClass === normalizedSelectedClass || studentClass.includes(normalizedSelectedClass) || normalizedSelectedClass.includes(studentClass);
+        return studentClass === normalizedSelectedClass;
       });
 
-      // --- STEP C: FETCH COURSE REGISTRATIONS SPECIFIC TO THIS RESOLVED COURSE ID ---
+      // Fetch course registrations specifically tied to THIS teacher's course ID
       let regMap = new Map();
       if (resolvedCourseId) {
         const { data: registrationRecords } = await supabase
@@ -167,7 +152,7 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
       setStudents(processedRoster);
       const classStudentEmails = new Set(processedRoster.map(s => s.email));
 
-      // --- STEP D: FETCH SUBMISSIONS STRICTLY FOR THIS TEACHER'S ASSIGNMENTS ---
+      // Fetch submissions strictly for this teacher's assignments
       let filteredSubmissions = [];
       if (resolvedCourseId) {
         const { data: subData } = await supabase
@@ -218,14 +203,17 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
       let activeCourseId = currentCourseId;
       const activeProfile = currentTeacher || teacherProfile;
       const cleanEmail = (teacherEmail || activeProfile?.email || "").trim().toLowerCase();
+      const subjectName = activeProfile?.subject || activeProfile?.subject_specialization || "SUB";
 
-      // Ensure course exists before recording grades
+      // If course row doesn't exist yet for this specific teacher, create it safely with a unique code
       if (!activeCourseId) {
+        const uniqueCourseCode = `${selectedClass}_${subjectName}_${cleanEmail.split('@')[0]}`.toUpperCase();
+
         const { data: newCourse, error: courseErr } = await supabase
           .from("courses")
           .insert({
-            code: `${selectedClass}_${activeProfile?.subject || "SUB"}`.toUpperCase(),
-            name: `${activeProfile?.subject || "Subject"} for ${selectedClass}`,
+            code: uniqueCourseCode,
+            name: `${subjectName} for ${selectedClass}`,
             section: selectedClass,
             teacher_email: cleanEmail
           })
@@ -277,11 +265,11 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
     }
   }
 
-  // 5. Upload and send assignments out tied to the specific teacher's course
   async function handleUploadAssignment(e) {
     e.preventDefault();
     const activeProfile = currentTeacher || teacherProfile;
     const cleanEmail = (teacherEmail || activeProfile?.email || "").trim().toLowerCase();
+    const subjectName = activeProfile?.subject || activeProfile?.subject_specialization || "SUB";
     
     if (!selectedClass) {
       alert("Please select an active target class room layer first.");
@@ -297,11 +285,13 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
       let activeCourseId = currentCourseId;
 
       if (!activeCourseId) {
+        const uniqueCourseCode = `${selectedClass}_${subjectName}_${cleanEmail.split('@')[0]}`.toUpperCase();
+
         const { data: newCourse, error: courseErr } = await supabase
           .from("courses")
           .insert({
-            code: `${selectedClass}_${activeProfile?.subject || "SUB"}`.toUpperCase(),
-            name: `${activeProfile?.subject || "Subject"} for ${selectedClass}`,
+            code: uniqueCourseCode,
+            name: `${subjectName} for ${selectedClass}`,
             section: selectedClass,
             teacher_email: cleanEmail
           })
@@ -314,7 +304,7 @@ export default function TeacherStudentDataPage({ currentTeacher = null }) {
       }
 
       const fileExt = assignmentFile.name.split(".").pop();
-      const safeSubjectName = (activeProfile?.subject || activeProfile?.subject_specialization || "subject").replace(/\s+/g, "_");
+      const safeSubjectName = subjectName.replace(/\s+/g, "_");
       const safeFileName = `${safeSubjectName}_${selectedClass}_${Date.now()}.${fileExt}`;
 
       const { error: uploadErr } = await supabase.storage
