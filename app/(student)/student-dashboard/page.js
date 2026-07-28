@@ -114,7 +114,6 @@ export default function StudentDashboard() {
 
   async function fetchAssignmentsAndSubmissions(studentEmail, studentSectionTier, studentClassTier) {
     try {
-      // Fetch all assignments along with their associated courses and section info
       const { data: assignments, error: assignErr } = await supabase
         .from("assignments")
         .select(`
@@ -138,7 +137,6 @@ export default function StudentDashboard() {
 
       const submittedMap = new Map(submissions?.map(s => [s.assignment_id, s.file_url]) || []);
       
-      // Filter assignments so that every student matching the class/section level sees them
       const studentTierClean = (studentClassTier || studentSectionTier || "").trim().toUpperCase();
       
       const filteredAssignments = (assignments || []).filter(asm => {

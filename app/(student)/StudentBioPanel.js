@@ -56,23 +56,29 @@ export default function StudentBioPanel({
     try {
       let finalPassportUrl = savedPassportUrl;
 
-      // 1. Upload new passport file to Supabase Storage if one was selected
+      // 1. Upload new passport file to Supabase Storage "passports" bucket
       if (passportFile) {
         const fileExt = passportFile.name.split(".").pop();
         const fileName = `${currentStudentEmail.replace(/[^a-zA-Z0-9]/g, "_")}_${Date.now()}.${fileExt}`;
         const filePath = `${fileName}`;
 
-        // Upload to storage bucket named "passports" (Change bucket name if different)
         const { error: uploadError } = await supabase.storage
           .from("passports")
-          .upload(filePath, passportFile, { upsert: true });
+          .upload(filePath, passportFile, { 
+            upsert: true,
+            contentType: passportFile.type 
+          });
 
         if (uploadError) throw uploadError;
 
-        // Retrieve public URL from Supabase storage
+        // Retrieve public URL from Supabase storage bucket
         const { data: publicUrlData } = supabase.storage
           .from("passports")
           .getPublicUrl(filePath);
+
+        if (!publicUrlData || !publicUrlData.publicUrl) {
+          throw new Error("Failed to generate public URL for passport image.");
+        }
 
         finalPassportUrl = publicUrlData.publicUrl;
       }
