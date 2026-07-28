@@ -135,14 +135,23 @@ export default function CentralAuthGateway() {
           .from(targetTable)
           .update({ password: cleanInputPassword });
         
+        // If an ID exists, update by ID, otherwise explicitly fall back to email query matching
         if (profile.id) {
           query = query.eq("id", profile.id);
         } else {
           query = query.eq("email", cleanEmail);
         }
 
-        const { error } = await query;
+        const { data: updatedData, error } = await query.select();
         if (error) throw error;
+
+        // If the row didn't exist in admin_auth yet, insert it to make sure it saves permanently
+        if (userRole === "admin" && (!updatedData || updatedData.length === 0)) {
+          const { error: insertErr } = await supabase
+            .from("admin_auth")
+            .insert({ email: cleanEmail, password: cleanInputPassword });
+          if (insertErr) throw insertErr;
+        }
         
         profile.storedPassword = cleanInputPassword;
         alert("🔒 Password configured and saved permanently for this account profile!");
