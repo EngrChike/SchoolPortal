@@ -22,8 +22,9 @@ export default function StudentBioPanel({
   setStudentSection,
   classLevel,
   setClassLevel,
-  passportPreview,
+  passportFile,
   setPassportFile,
+  passportPreview,
   setPassportPreview,
   savedPassportUrl,
   setSavedPassportUrl
@@ -54,9 +55,29 @@ export default function StudentBioPanel({
 
     try {
       let finalPassportUrl = savedPassportUrl;
-      // Handle passport upload if a new file was chosen
-      // Note: passportFile state can be passed down or handled via props if needed.
-      
+
+      // 1. Upload new passport file to Supabase Storage if one was selected
+      if (passportFile) {
+        const fileExt = passportFile.name.split(".").pop();
+        const fileName = `${currentStudentEmail.replace(/[^a-zA-Z0-9]/g, "_")}_${Date.now()}.${fileExt}`;
+        const filePath = `${fileName}`;
+
+        // Upload to storage bucket named "passports" (Change bucket name if different)
+        const { error: uploadError } = await supabase.storage
+          .from("passports")
+          .upload(filePath, passportFile, { upsert: true });
+
+        if (uploadError) throw uploadError;
+
+        // Retrieve public URL from Supabase storage
+        const { data: publicUrlData } = supabase.storage
+          .from("passports")
+          .getPublicUrl(filePath);
+
+        finalPassportUrl = publicUrlData.publicUrl;
+      }
+
+      // 2. Update student row record in database including the passport URL
       const { error: updateError } = await supabase
         .from("students")
         .update({
@@ -75,6 +96,7 @@ export default function StudentBioPanel({
       if (updateError) throw updateError;
 
       setSavedPassportUrl(finalPassportUrl);
+      setPassportFile(null); // Clear temporary file buffer reference
       setIsEditingBio(false);
       alert("✨ Profile details & bio configuration saved permanently!");
     } catch (err) {
@@ -140,7 +162,7 @@ export default function StudentBioPanel({
           </div>
         </div>
 
-        {/* Section and Class Tier Selectors (Editable when Update Bio is active) */}
+        {/* Section and Class Tier Selectors */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
           <div>
             <label className="block text-xs font-bold uppercase text-slate-400 tracking-wider mb-1.5">School Level Tier (Primary / Secondary)</label>
@@ -155,7 +177,7 @@ export default function StudentBioPanel({
             </select>
           </div>
           <div>
-            <label className="block text-xs font-bold uppercase text-slate-400 tracking-wider mb-1.5">Assigned Class Level (e.g., JSS1 / JSS2)</label>
+            <label className="block text-xs font-bold uppercase text-slate-400 tracking-wider mb-1.5">Assigned Class Level</label>
             <select
               disabled={!isEditingBio}
               value={classLevel}

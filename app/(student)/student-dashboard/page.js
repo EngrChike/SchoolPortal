@@ -299,7 +299,7 @@ export default function StudentDashboard() {
   const studentProfileData = {
     name: fullName,
     email: currentStudentEmail,
-    reg_number: regNumber, // <-- Added reg_number here to resolve the NOT NULL database error
+    reg_number: regNumber,
     passport_url: savedPassportUrl,
     class_level: classLevel,
     section: studentSection
@@ -366,8 +366,9 @@ export default function StudentDashboard() {
               setStudentSection={setStudentSection}
               classLevel={classLevel}
               setClassLevel={setClassLevel}
-              passportPreview={passportPreview}
+              passportFile={passportFile}
               setPassportFile={setPassportFile}
+              passportPreview={passportPreview}
               setPassportPreview={setPassportPreview}
               savedPassportUrl={savedPassportUrl}
               setSavedPassportUrl={setSavedPassportUrl}
