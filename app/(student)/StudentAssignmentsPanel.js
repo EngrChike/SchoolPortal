@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
+
 export default function StudentAssignmentsPanel({
   performanceRecords,
   courseAssignments,
@@ -41,6 +42,7 @@ export default function StudentAssignmentsPanel({
           assignment_id: activeModalAssignment.id,
           student_email: (studentProfile?.email || "").trim().toLowerCase(),
           student_name: studentProfile?.name || "Student",
+          reg_number: studentProfile?.reg_number || "",
           passport_url: studentProfile?.passport_url || null,
           file_url: publicFileUrl
         });
