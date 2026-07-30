@@ -30,7 +30,7 @@ export default function AdminManageStudentsPage() {
     school_tier: "secondary",
     class_level: "jss1",
     academic_session: "2026/2027",
-    current_term: "1st Term"
+    current_term: "term_1"
   });
 
   // Dynamic lists definitions for forms and selections (Lowercase slugs matching student bio panel)
@@ -165,7 +165,7 @@ export default function AdminManageStudentsPage() {
       school_tier: (student.school_tier || activeTier).toLowerCase(),
       class_level: student.class_level || activeClass,
       academic_session: student.academic_session || "2026/2027",
-      current_term: student.current_term || "1st Term"
+      current_term: student.current_term || "term_1"
     });
     setIsModalOpen(true);
   };
@@ -209,7 +209,7 @@ export default function AdminManageStudentsPage() {
       school_tier: activeTier, 
       class_level: activeClass, 
       academic_session: "2026/2027",
-      current_term: "1st Term"
+      current_term: "term_1"
     });
     setIsModalOpen(true);
   };
@@ -266,7 +266,7 @@ export default function AdminManageStudentsPage() {
         school_tier: "secondary", 
         class_level: "jss1",
         academic_session: "2026/2027",
-        current_term: "1st Term"
+        current_term: "term_1"
       });
       setEditingStudentId(null);
       setIsModalOpen(false);
@@ -583,11 +583,11 @@ export default function AdminManageStudentsPage() {
                   <select
                     value={formData.current_term}
                     onChange={(e) => setFormData({ ...formData, current_term: e.target.value })}
-                    className="w-full rounded-xl border border-slate-200 p-2.5 text-sm text-slate-800 bg-white outline-none focus:border-blue-600"
+                    className="w-full rounded-xl border border-slate-200 p-2.5 text-sm text-slate-800 bg-white outline-none focus:border-blue-600 uppercase"
                   >
-                    <option value="1st Term">1st Term</option>
-                    <option value="2nd Term">2nd Term</option>
-                    <option value="3rd Term">3rd Term</option>
+                    <option value="term_1">Term 1</option>
+                    <option value="term_2">Term 2</option>
+                    <option value="term_3">Term 3</option>
                   </select>
                 </div>
               </div>
