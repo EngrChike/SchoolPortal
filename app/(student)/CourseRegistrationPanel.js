@@ -6,13 +6,15 @@ import { supabase } from "../../lib/supabaseClient";
 export default function CourseRegistrationPanel({
   currentStudentEmail,
   studentSection,
-  studentClassLevel = "JSS1",
+  studentClassLevel = "",
   registeredCourseIds = [],
   performanceRecords = [],
   refreshRegistrations,
 }) {
-  // Strictly lock the school tier to the student's active biodata class level
-  const activeClassTier = studentClassLevel ? studentClassLevel.toUpperCase() : "JSS1";
+  // Intelligently resolve active tier: prioritize studentClassLevel, then studentSection, with a safe fallback
+  const rawTier = studentClassLevel || studentSection || "Primary 1";
+  const activeClassTier = rawTier.toUpperCase();
+  
   const [selectedTermFolder, setSelectedTermFolder] = useState("1st Term");
 
   const [editingRecordId, setEditingRecordId] = useState(null);
@@ -82,13 +84,13 @@ export default function CourseRegistrationPanel({
   // Derive unique courses strictly filtered by whether the class is Primary or Secondary
   const derivedAvailableCourses = [];
   const seenCourseCodes = new Set();
-  const isPrimaryStudent = activeClassTier.includes("PRIMARY");
+  const isPrimaryStudent = activeClassTier.includes("PRIMARY") || activeClassTier.includes("PRI") || activeClassTier.includes("PRY");
 
   teachersList.forEach((teacher) => {
     const subjects = teacher.assigned_subjects || [];
     subjects.forEach((code) => {
       const cleanCode = code.replace(/[*\[\]"]/g, "").trim().toUpperCase();
-      const isCodePrimary = cleanCode.endsWith("-PRI");
+      const isCodePrimary = cleanCode.endsWith("-PRI") || cleanCode.includes("PRIMARY");
       
       // Strict separation: Primary students only see PRI courses, Secondary students see SEC/General courses
       if (cleanCode && !seenCourseCodes.has(cleanCode)) {
@@ -106,7 +108,7 @@ export default function CourseRegistrationPanel({
     });
 
     const spec = (teacher.subject_specialization || "").replace(/[*\[\]"]/g, "").trim().toUpperCase();
-    const isSpecPrimary = spec.endsWith("-PRI");
+    const isSpecPrimary = spec.endsWith("-PRI") || spec.includes("PRIMARY");
     if (spec && !seenCourseCodes.has(spec)) {
       if ((isPrimaryStudent && isSpecPrimary) || (!isPrimaryStudent && !isSpecPrimary)) {
         seenCourseCodes.add(spec);
@@ -186,7 +188,7 @@ export default function CourseRegistrationPanel({
   }
 
   const currentFilteredRecords = performanceRecords.filter(
-    (r) => (r.school_level_tier || "JSS1").toUpperCase() === activeClassTier && r.school_term === selectedTermFolder
+    (r) => (r.school_level_tier || "").toUpperCase() === activeClassTier && r.school_term === selectedTermFolder
   );
 
   const displayRecords = currentFilteredRecords.length > 0 ? currentFilteredRecords : derivedAvailableCourses.map(c => ({
