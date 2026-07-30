@@ -11,12 +11,16 @@ export default function CourseRegistrationPanel({
   performanceRecords = [],
   refreshRegistrations,
 }) {
-  // Intelligently resolve active tier: prioritize studentClassLevel, then studentSection, with a safe fallback
-  const rawTier = studentClassLevel || studentSection || "Primary 1";
-  const activeClassTier = rawTier.toUpperCase();
+  // 1. Intelligently normalize student class level (e.g., "Primary 2" -> "PRIMARY 2")
+  const rawTier = studentClassLevel || studentSection || "PRIMARY 1";
+  const activeClassTier = rawTier.toUpperCase().trim();
   
-  const [selectedTermFolder, setSelectedTermFolder] = useState("1st Term");
+  // Extract simple digits or clean keywords for smart matching (e.g., "2" from "PRIMARY 2")
+  const tierNumberMatch = activeClassTier.match(/\d+/);
+  const tierNumber = tierNumberMatch ? tierNumberMatch[0] : "";
+  const isPrimaryStudent = activeClassTier.includes("PRIMARY") || activeClassTier.includes("PRI") || activeClassTier.includes("PRY");
 
+  const [selectedTermFolder, setSelectedTermFolder] = useState("1st Term");
   const [editingRecordId, setEditingRecordId] = useState(null);
   const [editTermValue, setEditTermValue] = useState("1st Term");
   const [autoRegistering, setAutoRegistering] = useState(false);
@@ -25,9 +29,9 @@ export default function CourseRegistrationPanel({
   const [teachersList, setTeachersList] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
 
-  // Master Subject Title Dictionary for code-to-title translation
+  // Master Subject Title Dictionary
   const subjectTitleMap = {
-    // Primary
+    // Primary general fallbacks
     "ENG-PRI": "English Studies",
     "MTH-PRI": "Mathematics",
     "BST-PRI": "Basic Science and Technology",
@@ -37,28 +41,11 @@ export default function CourseRegistrationPanel({
     "IRS-PRI": "Islamic Religious Studies",
     "SOS-PRI": "Social Studies",
     "GAR-PRI": "Agricultural Science",
-    // Secondary / General
-    "MTH-SEC": "Mathematics (JSS - SS)",
-    "ENG-SEC": "English Language (JSS - SS)",
-    "BIO-SEC": "Biology (JSS Basic Science / SS Bio)",
-    "CHM-SEC": "Chemistry",
-    "PHY-SEC": "Physics",
-    "ECO-SEC": "Economics",
-    "GOV-SEC": "Government",
-    "CRS-SEC": "Christian Religious Studies",
-    "AGR-SEC": "Agricultural Science",
-    "ACC-SEC": "Financial Accounting",
-    "GEO-SEC": "Geography",
-    "LIT-SEC": "Literature-in-English",
-    "CMP-SEC": "Computer Studies / ICT",
-    "BUS-SEC": "Business Studies (JSS)",
-    "BAS-SEC": "Basic Science (JSS)",
-    "SST-SEC": "Social Studies / Civics (JSS)",
-    // Fallback standard keys
-    "MTH": "Mathematics",
-    "ENG": "English Language",
-    "BASIC-SCI": "Basic Science",
-    "BUS-STUDIES": "Business Studies"
+    // Secondary general fallbacks
+    "MTH-SEC": "Mathematics",
+    "ENG-SEC": "English Language",
+    "BAS-SEC": "Basic Science",
+    "BUS-SEC": "Business Studies"
   };
 
   useEffect(() => {
@@ -81,78 +68,83 @@ export default function CourseRegistrationPanel({
     }
   }
 
-  // Derive unique courses strictly filtered by whether the class is Primary or Secondary
+  // 2. Smart Course Derivation & Teacher Matching
   const derivedAvailableCourses = [];
   const seenCourseCodes = new Set();
-  const isPrimaryStudent = activeClassTier.includes("PRIMARY") || activeClassTier.includes("PRI") || activeClassTier.includes("PRY");
 
   teachersList.forEach((teacher) => {
-    const subjects = teacher.assigned_subjects || [];
-    subjects.forEach((code) => {
+    // Combine assigned subjects and specialization safely
+    const rawSubjects = teacher.assigned_subjects || [];
+    const subjects = Array.isArray(rawSubjects) ? rawSubjects : [rawSubjects];
+    const spec = (teacher.subject_specialization || "").replace(/[*\[\]"]/g, "").trim();
+    
+    const allTeacherCodes = [...subjects, spec];
+
+    allTeacherCodes.forEach((code) => {
+      if (!code) return;
       const cleanCode = code.replace(/[*\[\]"]/g, "").trim().toUpperCase();
-      const isCodePrimary = cleanCode.endsWith("-PRI") || cleanCode.includes("PRIMARY");
       
-      // Strict separation: Primary students only see PRI courses, Secondary students see SEC/General courses
-      if (cleanCode && !seenCourseCodes.has(cleanCode)) {
-        if ((isPrimaryStudent && isCodePrimary) || (!isPrimaryStudent && !isCodePrimary)) {
+      const isCodePrimary = cleanCode.includes("PRIMARY") || cleanCode.includes("PRI") || cleanCode.includes("PRY");
+      const isCodeSecondary = cleanCode.includes("SEC") || cleanCode.includes("JSS") || cleanCode.includes("SS");
+
+      // Match criteria: Student and Teacher category must align (Primary vs Secondary)
+      const categoryMatches = (isPrimaryStudent && isCodePrimary) || (!isPrimaryStudent && isCodeSecondary) || (!isCodePrimary && !isCodeSecondary);
+
+      if (categoryMatches && cleanCode && !seenCourseCodes.has(cleanCode)) {
+        // If specific tier numbers exist (e.g. Primary 2), prioritize matching them, otherwise accept general curriculum
+        const codeNumberMatch = cleanCode.match(/\d+/);
+        const codeNumber = codeNumberMatch ? codeNumberMatch[0] : "";
+
+        if (!tierNumber || !codeNumber || codeNumber === tierNumber || cleanCode.includes(activeClassTier)) {
           seenCourseCodes.add(cleanCode);
           derivedAvailableCourses.push({
             id: cleanCode,
             code: cleanCode,
             title: subjectTitleMap[cleanCode] || cleanCode,
-            teacher_name: teacher.name || "Assigned Faculty",
-            teacher_id: teacher.teacher_id
+            teacher_name: teacher.name || teacher.full_name || "Assigned Faculty",
+            teacher_id: teacher.id || teacher.teacher_id || null
           });
         }
       }
     });
-
-    const spec = (teacher.subject_specialization || "").replace(/[*\[\]"]/g, "").trim().toUpperCase();
-    const isSpecPrimary = spec.endsWith("-PRI") || spec.includes("PRIMARY");
-    if (spec && !seenCourseCodes.has(spec)) {
-      if ((isPrimaryStudent && isSpecPrimary) || (!isPrimaryStudent && !isSpecPrimary)) {
-        seenCourseCodes.add(spec);
-        derivedAvailableCourses.push({
-          id: spec,
-          code: spec,
-          title: subjectTitleMap[spec] || spec,
-          teacher_name: teacher.name || "Assigned Faculty",
-          teacher_id: teacher.teacher_id
-        });
-      }
-    }
   });
 
-  // Fallback default curriculum if teachers table has no explicit assignments yet
+  // 3. Robust Fallback Curriculum if Admin hasn't explicitly assigned class codes yet
   if (derivedAvailableCourses.length === 0 && !loadingData) {
     const defaultCodes = isPrimaryStudent 
-      ? ["MTH-PRI", "ENG-PRI", "BST-PRI"] 
+      ? [`ENG-${activeClassTier}`, `MTH-${activeClassTier}`, `BST-${activeClassTier}`]
       : ["MTH-SEC", "ENG-SEC", "BAS-SEC", "BUS-SEC"];
       
     defaultCodes.forEach(code => {
       derivedAvailableCourses.push({
         id: code,
         code: code,
-        title: subjectTitleMap[code] || code,
+        title: subjectTitleMap[code] || code.replace(/-/g, " "),
         teacher_name: "Assigned Faculty",
         teacher_id: null
       });
     });
   }
 
+  // 4. Dynamic Teacher Lookup per Course Code
   function getAssignedTeacherForCourseCode(courseCode) {
     const target = (courseCode || "").replace(/[*\[\]"]/g, "").trim().toUpperCase();
     const matched = teachersList.find((teacher) => {
-      const assigned = teacher.assigned_subjects || [];
+      const subjects = teacher.assigned_subjects || [];
       const spec = (teacher.subject_specialization || "").replace(/[*\[\]"]/g, "").trim().toUpperCase();
-      return (
-        assigned.some((s) => s.replace(/[*\[\]"]/g, "").trim().toUpperCase() === target) ||
-        spec === target
-      );
+      
+      const matchesSubject = subjects.some((s) => {
+        const cleanS = String(s).replace(/[*\[\]"]/g, "").trim().toUpperCase();
+        return cleanS === target || cleanS.includes(target) || target.includes(cleanS);
+      });
+
+      return matchesSubject || spec === target || spec.includes(target);
     });
-    return matched ? matched.name : "Assigned Faculty";
+
+    return matched ? (matched.name || matched.full_name || "Assigned Faculty") : "Assigned Faculty";
   }
 
+  // 5. Automatic Registration Sync with Supabase Database
   useEffect(() => {
     if (!loadingData && currentStudentEmail && derivedAvailableCourses.length > 0) {
       syncAutomaticRegistrations();
@@ -188,7 +180,7 @@ export default function CourseRegistrationPanel({
   }
 
   const currentFilteredRecords = performanceRecords.filter(
-    (r) => (r.school_level_tier || "").toUpperCase() === activeClassTier && r.school_term === selectedTermFolder
+    (r) => (r.school_level_tier || "").toUpperCase().trim() === activeClassTier && r.school_term === selectedTermFolder
   );
 
   const displayRecords = currentFilteredRecords.length > 0 ? currentFilteredRecords : derivedAvailableCourses.map(c => ({
@@ -343,7 +335,7 @@ export default function CourseRegistrationPanel({
             {displayRecords.map((record, index) => {
               const isEditing = editingRecordId === record.course_id;
               const courseCode = record.course_id;
-              const courseTitle = subjectTitleMap[courseCode] || record.courses?.title || record.courses?.name || courseCode;
+              const courseTitle = subjectTitleMap[courseCode] || record.courses?.title || record.courses?.name || courseCode.replace(/-/g, " ");
               const assignedTeacherName = getAssignedTeacherForCourseCode(courseCode);
 
               return (
