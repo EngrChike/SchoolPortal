@@ -11,6 +11,7 @@ export default function CourseRegistrationPanel({
   performanceRecords = [],
   refreshRegistrations,
 }) {
+  // Automatically initialize with the student's actual class level prop
   const [selectedSchoolLevelTier, setSelectedSchoolLevelTier] = useState(
     studentClassLevel ? studentClassLevel.toUpperCase() : "JSS1"
   );
@@ -64,6 +65,7 @@ export default function CourseRegistrationPanel({
     fetchDatabaseMasterData();
   }, []);
 
+  // Keep state synchronized whenever the student's profile class level prop updates from the database
   useEffect(() => {
     if (studentClassLevel) {
       setSelectedSchoolLevelTier(studentClassLevel.toUpperCase());
@@ -188,7 +190,6 @@ export default function CourseRegistrationPanel({
     (r) => (r.school_level_tier || "JSS1").toUpperCase() === selectedSchoolLevelTier.toUpperCase() && r.school_term === selectedTermFolder
   );
 
-  // Fallback view for UI rendering if performanceRecords props haven't updated yet
   const displayRecords = currentFilteredRecords.length > 0 ? currentFilteredRecords : derivedAvailableCourses.map(c => ({
     course_id: c.id,
     school_term: selectedTermFolder,
@@ -263,14 +264,14 @@ export default function CourseRegistrationPanel({
           <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Active Student Class & Tier</h3>
           <p className="text-xs text-slate-400">Curriculum maps automatically based on class profile ({selectedSchoolLevelTier}).</p>
         </div>
-        <div className="flex gap-2 w-full sm:w-auto overflow-x-auto">
-          {["PRIMARY 1", "JSS1", "JSS2", "JSS3", "SS1"].map((tier) => (
+        <div className="flex gap-2 w-full sm:w-auto overflow-x-auto pb-1">
+          {["PRIMARY 1", "PRIMARY 2", "PRIMARY 3", "PRIMARY 4", "PRIMARY 5", "PRIMARY 6", "JSS1", "JSS2", "JSS3", "SS1", "SS2", "SS3"].map((tier) => (
             <button
               key={tier}
               type="button"
               onClick={() => setSelectedSchoolLevelTier(tier)}
               className={`py-2.5 px-4 rounded-xl text-xs font-bold cursor-pointer transition-all flex-shrink-0 ${
-                selectedSchoolLevelTier === tier ? "bg-indigo-600 text-white shadow-md" : "bg-slate-100 text-slate-600"
+                selectedSchoolLevelTier === tier ? "bg-indigo-600 text-white shadow-md" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
               }`}
             >
               {tier}
