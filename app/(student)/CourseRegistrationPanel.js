@@ -11,11 +11,8 @@ export default function CourseRegistrationPanel({
   performanceRecords = [],
   refreshRegistrations,
 }) {
-  // 1. Strictly capture the exact class level (e.g., "JSS1", "PRIMARY 2", "SS3")
   const rawTier = studentClassLevel || studentSection || "JSS1";
   const activeClassTier = rawTier.toUpperCase().trim();
-
-  // Extract level identifier for smart mapping (e.g., "JSS1", "PRY2")
   const isPrimaryStudent = activeClassTier.includes("PRIMARY") || activeClassTier.includes("PRI") || activeClassTier.includes("PRY");
 
   const [selectedTermFolder, setSelectedTermFolder] = useState("1st Term");
@@ -23,11 +20,9 @@ export default function CourseRegistrationPanel({
   const [editTermValue, setEditTermValue] = useState("1st Term");
   const [autoRegistering, setAutoRegistering] = useState(false);
 
-  // Database State
   const [teachersList, setTeachersList] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
 
-  // Master Subject Title Dictionary
   const subjectTitleMap = {
     "MTH-JSS1": "Mathematics",
     "ENG-JSS1": "English Language",
@@ -60,7 +55,6 @@ export default function CourseRegistrationPanel({
     }
   }
 
-  // 2. Derive courses by matching teachers assigned specifically to this class tier (e.g., JSS1)
   const derivedAvailableCourses = [];
   const seenCourseCodes = new Set();
 
@@ -75,7 +69,6 @@ export default function CourseRegistrationPanel({
       if (!code) return;
       const cleanCode = String(code).replace(/[*\[\]"]/g, "").trim().toUpperCase();
 
-      // Check if the teacher's assigned code matches the student's exact class tier (e.g., contains "JSS1")
       const matchesClassLevel = cleanCode.includes(activeClassTier) || cleanCode === activeClassTier || cleanCode.includes(`-${activeClassTier}`);
       const isGeneralSecondaryFallback = !isPrimaryStudent && (cleanCode.includes("SEC") || cleanCode.includes("JSS"));
 
@@ -92,7 +85,6 @@ export default function CourseRegistrationPanel({
     });
   });
 
-  // Fallback curriculum if teachers haven't been explicitly tagged with the class code yet
   if (derivedAvailableCourses.length === 0 && !loadingData) {
     const defaultCodes = isPrimaryStudent 
       ? [`ENG-${activeClassTier}`, `MTH-${activeClassTier}`]
@@ -109,7 +101,6 @@ export default function CourseRegistrationPanel({
     });
   }
 
-  // 3. Find exact teacher assigned to a specific course code
   function getAssignedTeacherForCourseCode(courseCode) {
     const target = (courseCode || "").replace(/[*\[\]"]/g, "").trim().toUpperCase();
     const matched = teachersList.find((teacher) => {
@@ -127,7 +118,6 @@ export default function CourseRegistrationPanel({
     return matched ? (matched.name || matched.full_name || "Assigned Faculty") : "Assigned Faculty";
   }
 
-  // 4. Sync Registrations automatically to Supabase so it populates the Teacher Dashboard instantly
   useEffect(() => {
     if (!loadingData && currentStudentEmail && derivedAvailableCourses.length > 0) {
       syncAutomaticRegistrations();
@@ -142,7 +132,7 @@ export default function CourseRegistrationPanel({
         student_email: currentStudentEmail,
         course_id: course.id,
         school_term: selectedTermFolder,
-        school_level_tier: activeClassTier, // Explicitly saves as "JSS1"
+        school_level_tier: activeClassTier,
         teacher_id: course.teacher_id || null
       }));
 
@@ -234,7 +224,6 @@ export default function CourseRegistrationPanel({
 
   return (
     <div className="space-y-6 sm:space-y-8 no-print-wrapper font-sans">
-      {/* Exact Student Class & Tier Banner (Shows JSS1 instead of Secondary) */}
       <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
         <div>
           <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Active Student Class & Tier (Locked)</h3>
@@ -247,7 +236,6 @@ export default function CourseRegistrationPanel({
         </div>
       </div>
 
-      {/* Term Folders & Actions */}
       <div className="bg-white p-5 sm:p-6 md:p-8 rounded-3xl sm:rounded-[2rem] border border-slate-100 shadow-sm space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-100">
           <div>
@@ -274,7 +262,6 @@ export default function CourseRegistrationPanel({
           </div>
         </div>
 
-        {/* Clear Term Storage Option */}
         <div className="flex items-center justify-between p-4 bg-amber-50/60 border border-amber-200/60 rounded-2xl">
           <div>
             <h4 className="text-xs font-bold text-amber-900 uppercase">Term Curriculum Management</h4>
@@ -292,7 +279,6 @@ export default function CourseRegistrationPanel({
         </div>
       </div>
 
-      {/* Automated Registered Records Listing */}
       <div className="bg-white p-5 sm:p-6 md:p-8 rounded-3xl sm:rounded-[2rem] border border-slate-100 shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <div>

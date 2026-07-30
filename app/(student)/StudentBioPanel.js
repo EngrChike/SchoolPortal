@@ -32,7 +32,6 @@ export default function StudentBioPanel({
   const [submitting, setSubmitting] = useState(false);
   const [isEditingBio, setIsEditingBio] = useState(false);
 
-  // File selection handler for passport
   function handleFileChange(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -44,7 +43,6 @@ export default function StudentBioPanel({
     setPassportPreview(URL.createObjectURL(file));
   }
 
-  // Handle saving and committing bio data permanently
   async function handleSaveBioData(e) {
     e.preventDefault();
     if (!currentStudentEmail) {
@@ -56,7 +54,6 @@ export default function StudentBioPanel({
     try {
       let finalPassportUrl = savedPassportUrl;
 
-      // 1. Upload new passport file to Supabase Storage "passports" bucket
       if (passportFile) {
         const fileExt = passportFile.name.split(".").pop();
         const fileName = `${currentStudentEmail.replace(/[^a-zA-Z0-9]/g, "_")}_${Date.now()}.${fileExt}`;
@@ -71,7 +68,6 @@ export default function StudentBioPanel({
 
         if (uploadError) throw uploadError;
 
-        // Retrieve public URL from Supabase storage bucket
         const { data: publicUrlData } = supabase.storage
           .from("passports")
           .getPublicUrl(filePath);
@@ -83,7 +79,9 @@ export default function StudentBioPanel({
         finalPassportUrl = publicUrlData.publicUrl;
       }
 
-      // 2. Update student row record in database including the passport URL
+      // Synchronize exact lowercase tier for admin filters and exact class level for curriculum mapping
+      const normalizedTier = (studentSection || "").toLowerCase().trim();
+
       const { error: updateError } = await supabase
         .from("students")
         .update({
@@ -94,6 +92,7 @@ export default function StudentBioPanel({
           parent_name: parentName.trim(),
           parent_phone: parentPhone.trim(),
           section: studentSection,
+          school_tier: normalizedTier.includes("primary") ? "primary" : "secondary",
           class_level: classLevel,
           passport_url: finalPassportUrl
         })
@@ -102,7 +101,7 @@ export default function StudentBioPanel({
       if (updateError) throw updateError;
 
       setSavedPassportUrl(finalPassportUrl);
-      setPassportFile(null); // Clear temporary file buffer reference
+      setPassportFile(null);
       setIsEditingBio(false);
       alert("✨ Profile details & bio configuration saved permanently!");
     } catch (err) {
@@ -168,7 +167,7 @@ export default function StudentBioPanel({
           </div>
         </div>
 
-        {/* Section and Class Tier Selectors */}
+        {/* Section and Class Tier Selectors - Both locked when not editing */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
           <div>
             <label className="block text-xs font-bold uppercase text-slate-400 tracking-wider mb-1.5">School Level Tier (Primary / Secondary)</label>

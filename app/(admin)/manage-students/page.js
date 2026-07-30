@@ -12,7 +12,7 @@ export default function AdminManageStudentsPage() {
   // Edit State Management
   const [editingStudentId, setEditingStudentId] = useState(null);
 
-  // Active Viewing Tier Matrix Filters
+  // Active Viewing Tier Matrix Filters (Unified lowercase slugs)
   const [activeTier, setActiveTier] = useState("secondary"); // 'primary' or 'secondary'
   const [activeClass, setActiveClass] = useState("jss1"); // Default active level selection filter
 
@@ -30,11 +30,11 @@ export default function AdminManageStudentsPage() {
     school_tier: "secondary",
     class_level: "jss1",
     academic_session: "2026/2027",
-    current_term: "term_1"
+    current_term: "1st Term"
   });
 
-  // Dynamic lists definitions for forms and selections
-  const primaryClasses = ["primary_1", "primary_2", "primary_3", "primary_4", "primary_5", "primary_6"];
+  // Dynamic lists definitions for forms and selections (Lowercase slugs matching student bio panel)
+  const primaryClasses = ["primary 1", "primary 2", "primary 3", "primary 4", "primary 5", "primary 6"];
   const secondaryClasses = ["jss1", "jss2", "jss3", "ss1", "ss2", "ss3"];
 
   // Helper formatting engine text tags conversions
@@ -162,10 +162,10 @@ export default function AdminManageStudentsPage() {
     setFormData({
       name: student.name || "",
       email: student.email || "",
-      school_tier: student.school_tier || activeTier,
+      school_tier: (student.school_tier || activeTier).toLowerCase(),
       class_level: student.class_level || activeClass,
       academic_session: student.academic_session || "2026/2027",
-      current_term: student.current_term || "term_1"
+      current_term: student.current_term || "1st Term"
     });
     setIsModalOpen(true);
   };
@@ -196,7 +196,7 @@ export default function AdminManageStudentsPage() {
 
   // Sync state variable cascades when Admin clicks modal setup parameters toggle links switches
   const handleFormTierChange = (tier) => {
-    const defaultClass = tier === "primary" ? "primary_1" : "jss1";
+    const defaultClass = tier === "primary" ? "primary 1" : "jss1";
     setFormData({ ...formData, school_tier: tier, class_level: defaultClass });
   };
 
@@ -209,7 +209,7 @@ export default function AdminManageStudentsPage() {
       school_tier: activeTier, 
       class_level: activeClass, 
       academic_session: "2026/2027",
-      current_term: "term_1"
+      current_term: "1st Term"
     });
     setIsModalOpen(true);
   };
@@ -219,15 +219,19 @@ export default function AdminManageStudentsPage() {
     setIsSubmitting(true);
 
     try {
+      const normalizedTier = formData.school_tier.toLowerCase().trim();
+      const normalizedClass = formData.class_level.trim();
+
       if (editingStudentId) {
         // Update existing student
         const { error } = await supabase
           .from("students")
           .update({
-            name: formData.name,
+            name: formData.name.trim(),
             email: formData.email.trim().toLowerCase(),
-            school_tier: formData.school_tier,
-            class_level: formData.class_level,
+            school_tier: normalizedTier,
+            section: normalizedTier === "primary" ? "Primary" : "Secondary",
+            class_level: normalizedClass,
             academic_session: formData.academic_session,
             current_term: formData.current_term
           })
@@ -239,26 +243,16 @@ export default function AdminManageStudentsPage() {
         // Insert new student with tier-matched curriculum mapping to link with teacher/course panels
         const generatedRegNo = `STU-2026-${Math.floor(1000 + Math.random() * 9000)}`;
         
-        const tierCourses = formData.school_tier === "primary" ? [
-          { code: "MTH-PRI", title: "Primary Mathematics" },
-          { code: "ENG-PRI", title: "English Studies" },
-          { code: "SCI-PRI", title: "Basic Science" }
-        ] : [
-          { code: "MTH-SEC", title: "General Mathematics" },
-          { code: "ENG-SEC", title: "Use of English" },
-          { code: "PHY-SEC", title: "Introductory Physics" }
-        ];
-
         const { error } = await supabase.from("students").insert([
           {
             reg_number: generatedRegNo,
-            name: formData.name,
+            name: formData.name.trim(),
             email: formData.email.trim().toLowerCase(),
-            school_tier: formData.school_tier,
-            class_level: formData.class_level,
+            school_tier: normalizedTier,
+            section: normalizedTier === "primary" ? "Primary" : "Secondary",
+            class_level: normalizedClass,
             academic_session: formData.academic_session,
-            current_term: formData.current_term,
-            courses: tierCourses
+            current_term: formData.current_term
           },
         ]);
 
@@ -272,7 +266,7 @@ export default function AdminManageStudentsPage() {
         school_tier: "secondary", 
         class_level: "jss1",
         academic_session: "2026/2027",
-        current_term: "term_1"
+        current_term: "1st Term"
       });
       setEditingStudentId(null);
       setIsModalOpen(false);
@@ -286,7 +280,11 @@ export default function AdminManageStudentsPage() {
 
   // Inline dynamic filter processing calculations
   const filteredStudents = students.filter(
-    (student) => student.school_tier === activeTier && student.class_level === activeClass
+    (student) => {
+      const studentTier = (student.school_tier || "").toLowerCase().trim();
+      const studentClass = (student.class_level || "").toLowerCase().trim();
+      return studentTier === activeTier.toLowerCase() && studentClass === activeClass.toLowerCase();
+    }
   );
 
   return (
@@ -363,7 +361,7 @@ export default function AdminManageStudentsPage() {
           <div className="flex flex-col gap-2">
             <span className="text-[10px] font-black tracking-wider text-slate-400 uppercase px-1">Select School Level</span>
             <button
-              onClick={() => { setActiveTier("primary"); setActiveClass("primary_1"); }}
+              onClick={() => { setActiveTier("primary"); setActiveClass("primary 1"); }}
               className={`w-full text-left px-4 py-3 rounded-xl font-black text-xs uppercase tracking-wide transition-all border ${
                 activeTier === "primary"
                   ? "bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-100"
@@ -393,13 +391,13 @@ export default function AdminManageStudentsPage() {
               <button
                 key={cls}
                 onClick={() => setActiveClass(cls)}
-                className={`w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-all ${
+                className={`w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-all uppercase ${
                   activeClass === cls
                     ? "bg-blue-50 text-blue-600 font-black border-l-4 border-blue-600"
                     : "text-slate-500 hover:bg-slate-50"
                 }`}
               >
-                {formatClassLabel(cls)}
+                {cls}
               </button>
             ))}
           </div>
@@ -409,7 +407,7 @@ export default function AdminManageStudentsPage() {
         <div className="lg:col-span-9 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden w-full">
           <div className="bg-slate-50/70 p-4 border-b border-slate-200 flex flex-wrap justify-between items-center gap-2">
             <span className="text-xs font-black text-slate-700 tracking-tight uppercase">
-              Viewing Roster: <span className="text-blue-600 font-mono bg-blue-50 border border-blue-100 px-2 py-0.5 rounded ml-1">{formatClassLabel(activeClass)}</span>
+              Viewing Roster: <span className="text-blue-600 font-mono bg-blue-50 border border-blue-100 px-2 py-0.5 rounded ml-1 uppercase">{activeClass}</span>
             </span>
             <span className="text-[10px] text-slate-400 font-mono font-bold bg-white px-2.5 py-1 border border-slate-200 rounded-md">
               Total Records matched: {filteredStudents.length}
@@ -455,7 +453,7 @@ export default function AdminManageStudentsPage() {
                       
                       <td className="px-4 py-4 font-mono text-[11px] whitespace-nowrap">
                         <div className="text-slate-700 font-bold">{student.academic_session}</div>
-                        <div className="text-indigo-600 text-[10px] font-bold uppercase tracking-wide mt-0.5">{student.current_term?.replace("_", " ")}</div>
+                        <div className="text-indigo-600 text-[10px] font-bold uppercase tracking-wide mt-0.5">{student.current_term}</div>
                       </td>
 
                       <td className="px-4 py-4 text-center whitespace-nowrap">
@@ -561,7 +559,7 @@ export default function AdminManageStudentsPage() {
                     className="w-full rounded-xl border border-slate-200 p-2.5 text-sm text-slate-800 bg-white outline-none focus:border-blue-600 uppercase"
                   >
                     {(formData.school_tier === "primary" ? primaryClasses : secondaryClasses).map((cls) => (
-                      <option key={cls} value={cls}>{formatClassLabel(cls)}</option>
+                      <option key={cls} value={cls}>{cls}</option>
                     ))}
                   </select>
                 </div>
@@ -587,9 +585,9 @@ export default function AdminManageStudentsPage() {
                     onChange={(e) => setFormData({ ...formData, current_term: e.target.value })}
                     className="w-full rounded-xl border border-slate-200 p-2.5 text-sm text-slate-800 bg-white outline-none focus:border-blue-600"
                   >
-                    <option value="term_1">First Term</option>
-                    <option value="term_2">Second Term</option>
-                    <option value="term_3">Third Term</option>
+                    <option value="1st Term">1st Term</option>
+                    <option value="2nd Term">2nd Term</option>
+                    <option value="3rd Term">3rd Term</option>
                   </select>
                 </div>
               </div>
