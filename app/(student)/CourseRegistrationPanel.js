@@ -11,10 +11,8 @@ export default function CourseRegistrationPanel({
   performanceRecords = [],
   refreshRegistrations,
 }) {
-  // Automatically initialize with the student's actual class level prop
-  const [selectedSchoolLevelTier, setSelectedSchoolLevelTier] = useState(
-    studentClassLevel ? studentClassLevel.toUpperCase() : "JSS1"
-  );
+  // Strictly lock the school tier to the student's active biodata class level
+  const activeClassTier = studentClassLevel ? studentClassLevel.toUpperCase() : "JSS1";
   const [selectedTermFolder, setSelectedTermFolder] = useState("1st Term");
 
   const [editingRecordId, setEditingRecordId] = useState(null);
@@ -65,13 +63,6 @@ export default function CourseRegistrationPanel({
     fetchDatabaseMasterData();
   }, []);
 
-  // Keep state synchronized whenever the student's profile class level prop updates from the database
-  useEffect(() => {
-    if (studentClassLevel) {
-      setSelectedSchoolLevelTier(studentClassLevel.toUpperCase());
-    }
-  }, [studentClassLevel]);
-
   async function fetchDatabaseMasterData() {
     setLoadingData(true);
     try {
@@ -88,43 +79,51 @@ export default function CourseRegistrationPanel({
     }
   }
 
-  // Derive unique courses dynamically with a loose fallback matcher
+  // Derive unique courses strictly filtered by whether the class is Primary or Secondary
   const derivedAvailableCourses = [];
   const seenCourseCodes = new Set();
-  const activeTierKey = selectedSchoolLevelTier.replace(/[\s_]/g, "").toUpperCase();
+  const isPrimaryStudent = activeClassTier.includes("PRIMARY");
 
   teachersList.forEach((teacher) => {
     const subjects = teacher.assigned_subjects || [];
     subjects.forEach((code) => {
       const cleanCode = code.replace(/[*\[\]"]/g, "").trim().toUpperCase();
+      const isCodePrimary = cleanCode.endsWith("-PRI");
+      
+      // Strict separation: Primary students only see PRI courses, Secondary students see SEC/General courses
       if (cleanCode && !seenCourseCodes.has(cleanCode)) {
-        seenCourseCodes.add(cleanCode);
-        derivedAvailableCourses.push({
-          id: cleanCode,
-          code: cleanCode,
-          title: subjectTitleMap[cleanCode] || cleanCode,
-          teacher_name: teacher.name || "Assigned Faculty",
-          teacher_id: teacher.teacher_id
-        });
+        if ((isPrimaryStudent && isCodePrimary) || (!isPrimaryStudent && !isCodePrimary)) {
+          seenCourseCodes.add(cleanCode);
+          derivedAvailableCourses.push({
+            id: cleanCode,
+            code: cleanCode,
+            title: subjectTitleMap[cleanCode] || cleanCode,
+            teacher_name: teacher.name || "Assigned Faculty",
+            teacher_id: teacher.teacher_id
+          });
+        }
       }
     });
 
     const spec = (teacher.subject_specialization || "").replace(/[*\[\]"]/g, "").trim().toUpperCase();
+    const isSpecPrimary = spec.endsWith("-PRI");
     if (spec && !seenCourseCodes.has(spec)) {
-      seenCourseCodes.add(spec);
-      derivedAvailableCourses.push({
-        id: spec,
-        code: spec,
-        title: subjectTitleMap[spec] || spec,
-        teacher_name: teacher.name || "Assigned Faculty",
-        teacher_id: teacher.teacher_id
-      });
+      if ((isPrimaryStudent && isSpecPrimary) || (!isPrimaryStudent && !isSpecPrimary)) {
+        seenCourseCodes.add(spec);
+        derivedAvailableCourses.push({
+          id: spec,
+          code: spec,
+          title: subjectTitleMap[spec] || spec,
+          teacher_name: teacher.name || "Assigned Faculty",
+          teacher_id: teacher.teacher_id
+        });
+      }
     }
   });
 
   // Fallback default curriculum if teachers table has no explicit assignments yet
   if (derivedAvailableCourses.length === 0 && !loadingData) {
-    const defaultCodes = activeTierKey.includes("PRIMARY") 
+    const defaultCodes = isPrimaryStudent 
       ? ["MTH-PRI", "ENG-PRI", "BST-PRI"] 
       : ["MTH-SEC", "ENG-SEC", "BAS-SEC", "BUS-SEC"];
       
@@ -156,7 +155,7 @@ export default function CourseRegistrationPanel({
     if (!loadingData && currentStudentEmail && derivedAvailableCourses.length > 0) {
       syncAutomaticRegistrations();
     }
-  }, [loadingData, selectedSchoolLevelTier, selectedTermFolder, teachersList]);
+  }, [loadingData, activeClassTier, selectedTermFolder, teachersList]);
 
   async function syncAutomaticRegistrations() {
     if (!currentStudentEmail || derivedAvailableCourses.length === 0) return;
@@ -166,7 +165,7 @@ export default function CourseRegistrationPanel({
         student_email: currentStudentEmail,
         course_id: course.id,
         school_term: selectedTermFolder,
-        school_level_tier: selectedSchoolLevelTier,
+        school_level_tier: activeClassTier,
         teacher_id: course.teacher_id || null
       }));
 
@@ -187,13 +186,13 @@ export default function CourseRegistrationPanel({
   }
 
   const currentFilteredRecords = performanceRecords.filter(
-    (r) => (r.school_level_tier || "JSS1").toUpperCase() === selectedSchoolLevelTier.toUpperCase() && r.school_term === selectedTermFolder
+    (r) => (r.school_level_tier || "JSS1").toUpperCase() === activeClassTier && r.school_term === selectedTermFolder
   );
 
   const displayRecords = currentFilteredRecords.length > 0 ? currentFilteredRecords : derivedAvailableCourses.map(c => ({
     course_id: c.id,
     school_term: selectedTermFolder,
-    school_level_tier: selectedSchoolLevelTier
+    school_level_tier: activeClassTier
   }));
 
   async function handleDeleteCourseRegistration(courseId) {
@@ -204,7 +203,7 @@ export default function CourseRegistrationPanel({
         .delete()
         .eq("student_email", currentStudentEmail)
         .eq("course_id", courseId)
-        .eq("school_level_tier", selectedSchoolLevelTier)
+        .eq("school_level_tier", activeClassTier)
         .eq("school_term", selectedTermFolder);
 
       if (error) throw error;
@@ -217,17 +216,17 @@ export default function CourseRegistrationPanel({
   }
 
   async function handleClearRegisteredCourses(termName) {
-    if (!confirm(`Are you sure you want to clear all automated course profiles for ${selectedSchoolLevelTier} - ${termName}?`)) return;
+    if (!confirm(`Are you sure you want to clear all automated course profiles for ${activeClassTier} - ${termName}?`)) return;
     try {
       const { error } = await supabase
         .from("course_registrations")
         .delete()
         .eq("student_email", currentStudentEmail)
-        .eq("school_level_tier", selectedSchoolLevelTier)
+        .eq("school_level_tier", activeClassTier)
         .eq("school_term", termName);
 
       if (error) throw error;
-      alert(`✅ Curriculum successfully cleared for ${selectedSchoolLevelTier} (${termName})!`);
+      alert(`✅ Curriculum successfully cleared for ${activeClassTier} (${termName})!`);
       if (typeof refreshRegistrations === "function") {
         await refreshRegistrations(currentStudentEmail);
       }
@@ -243,7 +242,7 @@ export default function CourseRegistrationPanel({
         .update({ school_term: editTermValue })
         .eq("student_email", currentStudentEmail)
         .eq("course_id", courseId)
-        .eq("school_level_tier", selectedSchoolLevelTier);
+        .eq("school_level_tier", activeClassTier);
 
       if (error) throw error;
       alert("✏️ Course term profile successfully updated!");
@@ -258,25 +257,16 @@ export default function CourseRegistrationPanel({
 
   return (
     <div className="space-y-6 sm:space-y-8 no-print-wrapper font-sans">
-      {/* School Level Tier Selector */}
+      {/* Locked Active Student Class & Tier Banner */}
       <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
         <div>
-          <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Active Student Class & Tier</h3>
-          <p className="text-xs text-slate-400">Curriculum maps automatically based on class profile ({selectedSchoolLevelTier}).</p>
+          <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Active Student Class & Tier (Locked)</h3>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Curriculum is strictly locked to your profile class level. Update your biodata to switch classes.
+          </p>
         </div>
-        <div className="flex gap-2 w-full sm:w-auto overflow-x-auto pb-1">
-          {["PRIMARY 1", "PRIMARY 2", "PRIMARY 3", "PRIMARY 4", "PRIMARY 5", "PRIMARY 6", "JSS1", "JSS2", "JSS3", "SS1", "SS2", "SS3"].map((tier) => (
-            <button
-              key={tier}
-              type="button"
-              onClick={() => setSelectedSchoolLevelTier(tier)}
-              className={`py-2.5 px-4 rounded-xl text-xs font-bold cursor-pointer transition-all flex-shrink-0 ${
-                selectedSchoolLevelTier === tier ? "bg-indigo-600 text-white shadow-md" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
-            >
-              {tier}
-            </button>
-          ))}
+        <div className="bg-indigo-600 text-white font-black py-2.5 px-5 rounded-2xl text-xs uppercase tracking-wider shadow-md shadow-indigo-100 flex items-center gap-2">
+          🔒 {activeClassTier}
         </div>
       </div>
 
@@ -285,7 +275,7 @@ export default function CourseRegistrationPanel({
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-100">
           <div>
             <h3 className="text-sm sm:text-base font-black text-slate-800 tracking-tight">
-              Term Folders for [{selectedSchoolLevelTier}]
+              Term Folders for [{activeClassTier}]
             </h3>
             <p className="text-xs text-slate-400">Select a term folder to inspect automated curriculum mapping.</p>
           </div>
@@ -312,7 +302,7 @@ export default function CourseRegistrationPanel({
           <div>
             <h4 className="text-xs font-bold text-amber-900 uppercase">Term Curriculum Management</h4>
             <p className="text-[11px] text-amber-700 mt-0.5">
-              Reset automated records under <span className="font-bold underline">{selectedSchoolLevelTier} - {selectedTermFolder}</span>.
+              Reset automated records under <span className="font-bold underline">{activeClassTier} - {selectedTermFolder}</span>.
             </p>
           </div>
           <button
@@ -320,7 +310,7 @@ export default function CourseRegistrationPanel({
             onClick={() => handleClearRegisteredCourses(selectedTermFolder)}
             className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs py-2.5 px-4 rounded-xl transition-all cursor-pointer shadow-sm flex-shrink-0"
           >
-            Clear {selectedSchoolLevelTier} ({selectedTermFolder})
+            Clear {activeClassTier} ({selectedTermFolder})
           </button>
         </div>
       </div>
@@ -330,7 +320,7 @@ export default function CourseRegistrationPanel({
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="text-sm font-black text-slate-700 uppercase tracking-wider">
-              Assigned Courses & Instructors for {selectedSchoolLevelTier} ({selectedTermFolder})
+              Assigned Courses & Instructors for {activeClassTier} ({selectedTermFolder})
             </h3>
             <p className="text-xs text-slate-400 mt-0.5">
               {autoRegistering ? "Synchronizing automated curriculum..." : "All curriculum courses assigned to your class level via teachers table are listed below."}
@@ -344,7 +334,7 @@ export default function CourseRegistrationPanel({
           </p>
         ) : displayRecords.length === 0 ? (
           <p className="text-sm font-medium text-slate-400 text-center py-6 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-            No courses mapped under {selectedSchoolLevelTier} - {selectedTermFolder}. Please check your 'teachers' assigned subjects configuration.
+            No courses mapped under {activeClassTier} - {selectedTermFolder}. Please check your 'teachers' assigned subjects configuration.
           </p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
