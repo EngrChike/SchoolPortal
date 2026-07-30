@@ -11,11 +11,11 @@ export default function CourseRegistrationPanel({
   performanceRecords = [],
   refreshRegistrations,
 }) {
-  // 1. Intelligently normalize student class level (e.g., "Primary 2" -> "PRIMARY 2")
+  // 1. Intelligently resolve the student's active tier and normalize it (e.g., "Primary 2" -> "PRIMARY 2")
   const rawTier = studentClassLevel || studentSection || "PRIMARY 1";
   const activeClassTier = rawTier.toUpperCase().trim();
   
-  // Extract simple digits or clean keywords for smart matching (e.g., "2" from "PRIMARY 2")
+  // Extract numeric class level (e.g., "2" from "PRIMARY 2") for precise cross-matching
   const tierNumberMatch = activeClassTier.match(/\d+/);
   const tierNumber = tierNumberMatch ? tierNumberMatch[0] : "";
   const isPrimaryStudent = activeClassTier.includes("PRIMARY") || activeClassTier.includes("PRI") || activeClassTier.includes("PRY");
@@ -31,7 +31,7 @@ export default function CourseRegistrationPanel({
 
   // Master Subject Title Dictionary
   const subjectTitleMap = {
-    // Primary general fallbacks
+    // Primary Fallbacks
     "ENG-PRI": "English Studies",
     "MTH-PRI": "Mathematics",
     "BST-PRI": "Basic Science and Technology",
@@ -41,7 +41,7 @@ export default function CourseRegistrationPanel({
     "IRS-PRI": "Islamic Religious Studies",
     "SOS-PRI": "Social Studies",
     "GAR-PRI": "Agricultural Science",
-    // Secondary general fallbacks
+    // Secondary Fallbacks
     "MTH-SEC": "Mathematics",
     "ENG-SEC": "English Language",
     "BAS-SEC": "Basic Science",
@@ -68,12 +68,11 @@ export default function CourseRegistrationPanel({
     }
   }
 
-  // 2. Smart Course Derivation & Teacher Matching
+  // 2. Derive courses matching the exact student class level & teacher assignments
   const derivedAvailableCourses = [];
   const seenCourseCodes = new Set();
 
   teachersList.forEach((teacher) => {
-    // Combine assigned subjects and specialization safely
     const rawSubjects = teacher.assigned_subjects || [];
     const subjects = Array.isArray(rawSubjects) ? rawSubjects : [rawSubjects];
     const spec = (teacher.subject_specialization || "").replace(/[*\[\]"]/g, "").trim();
@@ -82,25 +81,25 @@ export default function CourseRegistrationPanel({
 
     allTeacherCodes.forEach((code) => {
       if (!code) return;
-      const cleanCode = code.replace(/[*\[\]"]/g, "").trim().toUpperCase();
+      const cleanCode = String(code).replace(/[*\[\]"]/g, "").trim().toUpperCase();
       
       const isCodePrimary = cleanCode.includes("PRIMARY") || cleanCode.includes("PRI") || cleanCode.includes("PRY");
       const isCodeSecondary = cleanCode.includes("SEC") || cleanCode.includes("JSS") || cleanCode.includes("SS");
 
-      // Match criteria: Student and Teacher category must align (Primary vs Secondary)
+      // Validate alignment between student category and teacher subject category
       const categoryMatches = (isPrimaryStudent && isCodePrimary) || (!isPrimaryStudent && isCodeSecondary) || (!isCodePrimary && !isCodeSecondary);
 
       if (categoryMatches && cleanCode && !seenCourseCodes.has(cleanCode)) {
-        // If specific tier numbers exist (e.g. Primary 2), prioritize matching them, otherwise accept general curriculum
         const codeNumberMatch = cleanCode.match(/\d+/);
         const codeNumber = codeNumberMatch ? codeNumberMatch[0] : "";
 
+        // Ensure course matches the specific tier number (e.g. Primary 2 matches Primary 2 teacher assignments)
         if (!tierNumber || !codeNumber || codeNumber === tierNumber || cleanCode.includes(activeClassTier)) {
           seenCourseCodes.add(cleanCode);
           derivedAvailableCourses.push({
             id: cleanCode,
             code: cleanCode,
-            title: subjectTitleMap[cleanCode] || cleanCode,
+            title: subjectTitleMap[cleanCode] || cleanCode.replace(/-/g, " "),
             teacher_name: teacher.name || teacher.full_name || "Assigned Faculty",
             teacher_id: teacher.id || teacher.teacher_id || null
           });
@@ -109,7 +108,7 @@ export default function CourseRegistrationPanel({
     });
   });
 
-  // 3. Robust Fallback Curriculum if Admin hasn't explicitly assigned class codes yet
+  // Fallback default curriculum if teachers table is empty or unconfigured
   if (derivedAvailableCourses.length === 0 && !loadingData) {
     const defaultCodes = isPrimaryStudent 
       ? [`ENG-${activeClassTier}`, `MTH-${activeClassTier}`, `BST-${activeClassTier}`]
@@ -126,7 +125,7 @@ export default function CourseRegistrationPanel({
     });
   }
 
-  // 4. Dynamic Teacher Lookup per Course Code
+  // 3. Robust Teacher Lookup
   function getAssignedTeacherForCourseCode(courseCode) {
     const target = (courseCode || "").replace(/[*\[\]"]/g, "").trim().toUpperCase();
     const matched = teachersList.find((teacher) => {
@@ -144,7 +143,7 @@ export default function CourseRegistrationPanel({
     return matched ? (matched.name || matched.full_name || "Assigned Faculty") : "Assigned Faculty";
   }
 
-  // 5. Automatic Registration Sync with Supabase Database
+  // 4. Sync Automatic Registrations to Supabase so Teacher Dashboard Updates Instantly
   useEffect(() => {
     if (!loadingData && currentStudentEmail && derivedAvailableCourses.length > 0) {
       syncAutomaticRegistrations();
