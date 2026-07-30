@@ -6,18 +6,16 @@ import { supabase } from "../../lib/supabaseClient";
 export default function CourseRegistrationPanel({
   currentStudentEmail,
   studentSection,
-  studentClassLevel = "",
+  studentClassLevel = "JSS1",
   registeredCourseIds = [],
   performanceRecords = [],
   refreshRegistrations,
 }) {
-  // 1. Intelligently resolve the student's active tier and normalize it (e.g., "Primary 2" -> "PRIMARY 2")
-  const rawTier = studentClassLevel || studentSection || "PRIMARY 1";
+  // 1. Strictly capture the exact class level (e.g., "JSS1", "PRIMARY 2", "SS3")
+  const rawTier = studentClassLevel || studentSection || "JSS1";
   const activeClassTier = rawTier.toUpperCase().trim();
-  
-  // Extract numeric class level (e.g., "2" from "PRIMARY 2") for precise cross-matching
-  const tierNumberMatch = activeClassTier.match(/\d+/);
-  const tierNumber = tierNumberMatch ? tierNumberMatch[0] : "";
+
+  // Extract level identifier for smart mapping (e.g., "JSS1", "PRY2")
   const isPrimaryStudent = activeClassTier.includes("PRIMARY") || activeClassTier.includes("PRI") || activeClassTier.includes("PRY");
 
   const [selectedTermFolder, setSelectedTermFolder] = useState("1st Term");
@@ -31,17 +29,11 @@ export default function CourseRegistrationPanel({
 
   // Master Subject Title Dictionary
   const subjectTitleMap = {
-    // Primary Fallbacks
-    "ENG-PRI": "English Studies",
-    "MTH-PRI": "Mathematics",
-    "BST-PRI": "Basic Science and Technology",
-    "PHE-PRI": "Physical and Health Education",
-    "CCA-PRI": "Cultural and Creative Arts",
-    "CRS-PRI": "Christian Religious Studies",
-    "IRS-PRI": "Islamic Religious Studies",
-    "SOS-PRI": "Social Studies",
-    "GAR-PRI": "Agricultural Science",
-    // Secondary Fallbacks
+    "MTH-JSS1": "Mathematics",
+    "ENG-JSS1": "English Language",
+    "BAS-JSS1": "Basic Science",
+    "BUS-JSS1": "Business Studies",
+    "SST-JSS1": "Social Studies",
     "MTH-SEC": "Mathematics",
     "ENG-SEC": "English Language",
     "BAS-SEC": "Basic Science",
@@ -68,7 +60,7 @@ export default function CourseRegistrationPanel({
     }
   }
 
-  // 2. Derive courses matching the exact student class level & teacher assignments
+  // 2. Derive courses by matching teachers assigned specifically to this class tier (e.g., JSS1)
   const derivedAvailableCourses = [];
   const seenCourseCodes = new Set();
 
@@ -82,37 +74,29 @@ export default function CourseRegistrationPanel({
     allTeacherCodes.forEach((code) => {
       if (!code) return;
       const cleanCode = String(code).replace(/[*\[\]"]/g, "").trim().toUpperCase();
-      
-      const isCodePrimary = cleanCode.includes("PRIMARY") || cleanCode.includes("PRI") || cleanCode.includes("PRY");
-      const isCodeSecondary = cleanCode.includes("SEC") || cleanCode.includes("JSS") || cleanCode.includes("SS");
 
-      // Validate alignment between student category and teacher subject category
-      const categoryMatches = (isPrimaryStudent && isCodePrimary) || (!isPrimaryStudent && isCodeSecondary) || (!isCodePrimary && !isCodeSecondary);
+      // Check if the teacher's assigned code matches the student's exact class tier (e.g., contains "JSS1")
+      const matchesClassLevel = cleanCode.includes(activeClassTier) || cleanCode === activeClassTier || cleanCode.includes(`-${activeClassTier}`);
+      const isGeneralSecondaryFallback = !isPrimaryStudent && (cleanCode.includes("SEC") || cleanCode.includes("JSS"));
 
-      if (categoryMatches && cleanCode && !seenCourseCodes.has(cleanCode)) {
-        const codeNumberMatch = cleanCode.match(/\d+/);
-        const codeNumber = codeNumberMatch ? codeNumberMatch[0] : "";
-
-        // Ensure course matches the specific tier number (e.g. Primary 2 matches Primary 2 teacher assignments)
-        if (!tierNumber || !codeNumber || codeNumber === tierNumber || cleanCode.includes(activeClassTier)) {
-          seenCourseCodes.add(cleanCode);
-          derivedAvailableCourses.push({
-            id: cleanCode,
-            code: cleanCode,
-            title: subjectTitleMap[cleanCode] || cleanCode.replace(/-/g, " "),
-            teacher_name: teacher.name || teacher.full_name || "Assigned Faculty",
-            teacher_id: teacher.id || teacher.teacher_id || null
-          });
-        }
+      if ((matchesClassLevel || isGeneralSecondaryFallback) && cleanCode && !seenCourseCodes.has(cleanCode)) {
+        seenCourseCodes.add(cleanCode);
+        derivedAvailableCourses.push({
+          id: cleanCode,
+          code: cleanCode,
+          title: subjectTitleMap[cleanCode] || cleanCode.replace(/-/g, " "),
+          teacher_name: teacher.name || teacher.full_name || "Assigned Faculty",
+          teacher_id: teacher.id || teacher.teacher_id || null
+        });
       }
     });
   });
 
-  // Fallback default curriculum if teachers table is empty or unconfigured
+  // Fallback curriculum if teachers haven't been explicitly tagged with the class code yet
   if (derivedAvailableCourses.length === 0 && !loadingData) {
     const defaultCodes = isPrimaryStudent 
-      ? [`ENG-${activeClassTier}`, `MTH-${activeClassTier}`, `BST-${activeClassTier}`]
-      : ["MTH-SEC", "ENG-SEC", "BAS-SEC", "BUS-SEC"];
+      ? [`ENG-${activeClassTier}`, `MTH-${activeClassTier}`]
+      : [`MTH-${activeClassTier}`, `ENG-${activeClassTier}`, `BAS-${activeClassTier}`, `BUS-${activeClassTier}`];
       
     defaultCodes.forEach(code => {
       derivedAvailableCourses.push({
@@ -125,7 +109,7 @@ export default function CourseRegistrationPanel({
     });
   }
 
-  // 3. Robust Teacher Lookup
+  // 3. Find exact teacher assigned to a specific course code
   function getAssignedTeacherForCourseCode(courseCode) {
     const target = (courseCode || "").replace(/[*\[\]"]/g, "").trim().toUpperCase();
     const matched = teachersList.find((teacher) => {
@@ -143,7 +127,7 @@ export default function CourseRegistrationPanel({
     return matched ? (matched.name || matched.full_name || "Assigned Faculty") : "Assigned Faculty";
   }
 
-  // 4. Sync Automatic Registrations to Supabase so Teacher Dashboard Updates Instantly
+  // 4. Sync Registrations automatically to Supabase so it populates the Teacher Dashboard instantly
   useEffect(() => {
     if (!loadingData && currentStudentEmail && derivedAvailableCourses.length > 0) {
       syncAutomaticRegistrations();
@@ -158,7 +142,7 @@ export default function CourseRegistrationPanel({
         student_email: currentStudentEmail,
         course_id: course.id,
         school_term: selectedTermFolder,
-        school_level_tier: activeClassTier,
+        school_level_tier: activeClassTier, // Explicitly saves as "JSS1"
         teacher_id: course.teacher_id || null
       }));
 
@@ -250,7 +234,7 @@ export default function CourseRegistrationPanel({
 
   return (
     <div className="space-y-6 sm:space-y-8 no-print-wrapper font-sans">
-      {/* Locked Active Student Class & Tier Banner */}
+      {/* Exact Student Class & Tier Banner (Shows JSS1 instead of Secondary) */}
       <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
         <div>
           <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Active Student Class & Tier (Locked)</h3>
