@@ -10,28 +10,25 @@ export default function CourseRegistrationPanel({
   classLevel, 
   currentClass, 
   section, 
-  student, // Added in case parent passes a whole student object
-  studentData, // Added in case parent passes a whole data object
+  student, 
+  studentData, 
   registeredCourseIds = [],
   performanceRecords = [],
   refreshRegistrations,
 }) {
-  // 1. BULLETPROOF EXACT CLASS EXTRACTION
-  // Prioritize exact class strings (Primary 1, JSS 1) before falling back to generic sections.
+  
   const rawExactClass = 
-    studentClassLevel || 
-    classLevel || 
-    currentClass || 
-    student?.class_level || 
-    student?.current_class || 
-    studentData?.class_level || 
-    studentData?.current_class || 
-    "";
+    studentClassLevel || classLevel || currentClass || 
+    student?.class_level || student?.current_class || 
+    studentData?.class_level || studentData?.current_class || "";
     
   const rawSection = studentSection || section || student?.section || studentData?.section || "";
 
-  // If we found an exact class, use it. Otherwise use the section. Default to Unassigned if nothing exists.
+  // This is used for database saving and UI display (e.g., "PRIMARY 1")
   const activeClassTier = (rawExactClass || rawSection || "UNASSIGNED").toUpperCase().trim();
+  
+  // 🔥 FIX 2: Create a stripped version to perfectly match the Admin's "primary_1" or "jss1" format
+  const matchableStudentClass = activeClassTier.replace(/[\s_]/g, ""); // Becomes "PRIMARY1" or "JSS1"
 
   const [selectedTermFolder, setSelectedTermFolder] = useState("1st Term");
   const [editingRecordId, setEditingRecordId] = useState(null);
@@ -41,10 +38,10 @@ export default function CourseRegistrationPanel({
   const [teachersList, setTeachersList] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
 
-  // Debugging log so you can check your browser console to see exactly what the parent is sending
   useEffect(() => {
-    console.log("🏫 DETECTED CLASS TIER:", activeClassTier);
-  }, [activeClassTier]);
+    console.log("🏫 DISPLAY CLASS TIER:", activeClassTier);
+    console.log("🔍 MATCHING ENGINE LOOKING FOR:", matchableStudentClass);
+  }, [activeClassTier, matchableStudentClass]);
 
   useEffect(() => {
     if (currentStudentEmail) {
@@ -52,7 +49,6 @@ export default function CourseRegistrationPanel({
     }
   }, [currentStudentEmail, activeClassTier]);
 
-  // Pull all teacher records set by the Admin in Supabase
   async function fetchDatabaseMasterData() {
     setLoadingData(true);
     try {
@@ -86,13 +82,11 @@ export default function CourseRegistrationPanel({
     }
   }
 
-  // 2. STRICT EXACT MATCH ENGINE
-  // Only extract courses where the admin assigned the teacher explicitly to this exact class level.
   const derivedAvailableCourses = [];
   const seenCourseCodes = new Set();
 
   teachersList.forEach((teacher) => {
-    // --- Parse Subjects Robustly ---
+    // Parse Subjects
     let rawSubjects = teacher.assigned_subjects || teacher.subjects || [];
     if (typeof rawSubjects === "string") {
       try {
@@ -104,8 +98,8 @@ export default function CourseRegistrationPanel({
     const subjects = Array.isArray(rawSubjects) ? rawSubjects : [rawSubjects];
     const spec = (teacher.subject_specialization || "").replace(/[*\[\]"]/g, "").trim();
     
-    // --- Parse Assigned Classrooms Robustly ---
-    let rawClasses = teacher.assigned_classrooms || teacher.class_level || teacher.section || "";
+    // 🔥 FIX 1: Look specifically for "assigned_classes" as saved by the Admin Panel
+    let rawClasses = teacher.assigned_classes || teacher.assigned_classrooms || teacher.class_level || teacher.section || "";
     let assignedClassesArray = [];
     
     if (typeof rawClasses === "string") {
@@ -118,11 +112,11 @@ export default function CourseRegistrationPanel({
       assignedClassesArray = rawClasses;
     }
 
-    // Normalize array to upper case and trim for strict matching
-    assignedClassesArray = assignedClassesArray.map(c => String(c).toUpperCase().trim());
+    // Strip out all spaces and underscores from the admin's saved classes to force a match
+    assignedClassesArray = assignedClassesArray.map(c => String(c).toUpperCase().replace(/[\s_]/g, ""));
 
-    // STRICT MATCH: Does this teacher's assigned classes include the student's active class tier?
-    const isTeacherForThisExactClass = assignedClassesArray.includes(activeClassTier);
+    // Check if the stripped admin class includes the stripped student class
+    const isTeacherForThisExactClass = assignedClassesArray.includes(matchableStudentClass);
 
     if (isTeacherForThisExactClass) {
       const allTeacherCodes = [...subjects, spec];
@@ -136,7 +130,7 @@ export default function CourseRegistrationPanel({
           derivedAvailableCourses.push({
             id: cleanCode,
             code: cleanCode,
-            title: cleanCode.replace(/-/g, " "), // E.g., "MATH" or "BASIC SCIENCE"
+            title: cleanCode.replace(/-/g, " "),
             teacher_name: teacher.name || teacher.full_name || "Assigned Faculty",
             teacher_id: teacher.id || teacher.teacher_id || null
           });
@@ -145,12 +139,10 @@ export default function CourseRegistrationPanel({
     }
   });
 
-  // Strict check for resolving the instructor's name for display
   function getAssignedTeacherForCourseCode(courseCode) {
     const target = (courseCode || "").replace(/[*\[\]"]/g, "").trim().toUpperCase();
     
     const matched = teachersList.find((teacher) => {
-      // Parse Subjects
       let subjects = teacher.assigned_subjects || teacher.subjects || [];
       if (typeof subjects === "string") {
         try { subjects = JSON.parse(subjects); } catch { subjects = subjects.split(","); }
@@ -159,17 +151,16 @@ export default function CourseRegistrationPanel({
       
       const spec = (teacher.subject_specialization || "").replace(/[*\[\]"]/g, "").trim().toUpperCase();
       
-      // Parse Classes
-      let rawClasses = teacher.assigned_classrooms || teacher.class_level || teacher.section || "";
+      let rawClasses = teacher.assigned_classes || teacher.assigned_classrooms || teacher.class_level || teacher.section || "";
       let assignedClassesArray = [];
       if (typeof rawClasses === "string") {
         try { assignedClassesArray = JSON.parse(rawClasses); } catch { assignedClassesArray = rawClasses.split(","); }
       } else if (Array.isArray(rawClasses)) {
         assignedClassesArray = rawClasses;
       }
-      assignedClassesArray = assignedClassesArray.map(c => String(c).toUpperCase().trim());
-
-      const isTeacherForThisExactClass = assignedClassesArray.includes(activeClassTier);
+      
+      assignedClassesArray = assignedClassesArray.map(c => String(c).toUpperCase().replace(/[\s_]/g, ""));
+      const isTeacherForThisExactClass = assignedClassesArray.includes(matchableStudentClass);
 
       if (!isTeacherForThisExactClass) return false;
 
@@ -198,7 +189,7 @@ export default function CourseRegistrationPanel({
         student_email: currentStudentEmail,
         course_id: course.id,
         school_term: selectedTermFolder,
-        school_level_tier: activeClassTier,
+        school_level_tier: activeClassTier, // Save with the readable format
         teacher_id: course.teacher_id || null
       }));
 
@@ -218,14 +209,10 @@ export default function CourseRegistrationPanel({
     }
   }
 
-  // Filter records specifically mapped to this exact student tier from DB
   const currentFilteredRecords = performanceRecords.filter(
     (r) => (r.school_level_tier || "").toUpperCase().trim() === activeClassTier && r.school_term === selectedTermFolder
   );
 
-  // 3. DATABASE GHOST BYPASS
-  // If we pulled records from the database but they have the old generic dummy codes (like -SEC), 
-  // rely on the freshly derived admin courses instead so the UI isn't broken.
   const displayRecords = 
     (currentFilteredRecords.length > 0 && !currentFilteredRecords.some(r => r.course_id?.includes('-SEC') || r.course_id?.includes('-PRI'))) 
     ? currentFilteredRecords 
@@ -339,7 +326,7 @@ export default function CourseRegistrationPanel({
           <div>
             <h4 className="text-xs font-bold text-amber-900 uppercase">Clear Ghost Records</h4>
             <p className="text-[11px] text-amber-700 mt-0.5">
-              Click this to wipe any old database courses (like AGR-SEC) and force a strict sync from the Admin teachers table.
+              Click this to wipe any old database courses and force a strict sync from the Admin teachers table.
             </p>
           </div>
           <button
