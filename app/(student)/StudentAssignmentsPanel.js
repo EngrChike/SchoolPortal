@@ -14,6 +14,18 @@ export default function StudentAssignmentsPanel({
   const [uploadFile, setUploadFile] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Safely derive and normalize the student's active class level/tier
+  const rawTier = studentProfile?.class_level || studentProfile?.school_level_tier || studentProfile?.section || "PRIMARY 1";
+  const activeClassTier = String(rawTier).toUpperCase().trim();
+
+  // Filter assignments strictly to match the student's locked class tier
+  const filteredCourseAssignments = (courseAssignments || []).filter((asm) => {
+    const asmTier = String(asm.school_level_tier || asm.class_level || "").toUpperCase().trim();
+    // If an assignment doesn't specify a tier, fallback to showing or hiding; here we enforce an exact match or inclusion check
+    if (!asmTier) return true; 
+    return asmTier === activeClassTier || asmTier.includes(activeClassTier) || activeClassTier.includes(asmTier);
+  });
+
   async function handleTurnInAssignment(e) {
     e.preventDefault();
     if (!activeModalAssignment || !uploadFile) {
@@ -62,26 +74,31 @@ export default function StudentAssignmentsPanel({
 
   return (
     <div className="bg-white p-5 sm:p-6 md:p-8 rounded-3xl sm:rounded-[2rem] border border-slate-100 shadow-sm no-print-wrapper relative">
-      <div className="mb-6">
-        <h3 className="text-base font-black text-slate-800 tracking-tight">Active Assignment Pipelines</h3>
-        <p className="text-xs text-slate-400 mt-0.5">Task sheets distributed by faculty for your registered coursework units.</p>
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h3 className="text-base font-black text-slate-800 tracking-tight">Active Assignment Pipelines</h3>
+          <p className="text-xs text-slate-400 mt-0.5">Task sheets distributed by faculty for your registered coursework units ({activeClassTier}).</p>
+        </div>
+        <div className="bg-indigo-50 text-indigo-700 border border-indigo-200 font-black py-1.5 px-3 rounded-xl text-xs uppercase tracking-wider flex items-center gap-1.5 self-start">
+          🎯 Tier: {activeClassTier}
+        </div>
       </div>
 
-      {(!courseAssignments || courseAssignments.length === 0) ? (
+      {filteredCourseAssignments.length === 0 ? (
         <div className="text-center py-12">
           <div className="h-12 w-12 bg-amber-50 text-amber-500 rounded-xl flex items-center justify-center mx-auto mb-4 text-xl">📂</div>
           <h3 className="text-sm font-bold text-slate-700">No Assessment Tasks Published</h3>
-          <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1">No published tasks have been broadcast by instructors for your modules yet.</p>
+          <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1">No published tasks have been broadcast by instructors for your tier ({activeClassTier}) yet.</p>
         </div>
       ) : (
         <div className="space-y-4">
-          {courseAssignments.map((asm) => {
+          {filteredCourseAssignments.map((asm) => {
             const timer = assignmentTimers[asm.id] || { displayString: "Syncing...", isExpired: false };
             return (
               <div key={asm.id} className="p-4 sm:p-5 bg-slate-50/50 border border-slate-200/60 rounded-2xl flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div className="space-y-1 min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs font-mono font-bold text-indigo-600 uppercase tracking-wider">{asm.courses?.code || asm.courses?.section || "COURSE"}</span>
+                    <span className="text-xs font-mono font-bold text-indigo-600 uppercase tracking-wider">{asm.courses?.code || asm.courses?.section || asm.school_level_tier || "COURSE"}</span>
                     <span className={`text-[9px] px-2 py-0.5 rounded font-black uppercase ${asm.hasSubmitted ? "bg-emerald-100 text-emerald-800" : timer.isExpired ? "bg-rose-100 text-rose-800" : "bg-amber-100 text-amber-800"}`}>
                       {asm.hasSubmitted ? "Turned In" : timer.isExpired ? "Terminated" : "Pending Action"}
                     </span>

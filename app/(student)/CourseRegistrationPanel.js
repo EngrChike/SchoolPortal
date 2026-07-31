@@ -11,7 +11,6 @@ export default function CourseRegistrationPanel({
   performanceRecords = [],
   refreshRegistrations,
 }) {
-  // Dynamically derive the active class tier without hardcoding a mismatched fallback
   const rawTier = studentClassLevel || studentSection || "JSS1";
   const activeClassTier = rawTier.toUpperCase().trim();
   const isPrimaryStudent = activeClassTier.includes("PRIMARY") || activeClassTier.includes("PRI") || activeClassTier.includes("PRY");
@@ -24,7 +23,6 @@ export default function CourseRegistrationPanel({
   const [teachersList, setTeachersList] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
 
-  // Expanded subject title map to handle both secondary and primary nomenclatures cleanly
   const subjectTitleMap = {
     "MTH-JSS1": "Mathematics",
     "ENG-JSS1": "English Language",
@@ -36,7 +34,9 @@ export default function CourseRegistrationPanel({
     "BAS-SEC": "Basic Science",
     "BUS-SEC": "Business Studies",
     "MTH-PRI1": "Mathematics",
-    "ENG-PRI1": "English Language"
+    "ENG-PRI1": "English Language",
+    "BST-PRI1": "Basic Science & Technology",
+    "CCCR-PRI1": "Civic Education"
   };
 
   useEffect(() => {
@@ -45,15 +45,33 @@ export default function CourseRegistrationPanel({
     }
   }, [currentStudentEmail, activeClassTier]);
 
+  // Robust fetch ensuring all teachers are loaded without truncation limits
   async function fetchDatabaseMasterData() {
     setLoadingData(true);
     try {
-      const { data: teachersRes, error: teachersErr } = await supabase
-        .from("teachers")
-        .select("*");
+      let allTeachers = [];
+      let rangeStart = 0;
+      let batchSize = 1000;
+      let fetchMore = true;
 
-      if (teachersErr) throw teachersErr;
-      if (teachersRes) setTeachersList(teachersRes);
+      while (fetchMore) {
+        const { data: teachersRes, error: teachersErr } = await supabase
+          .from("teachers")
+          .select("*")
+          .range(rangeStart, rangeStart + batchSize - 1);
+
+        if (teachersErr) throw teachersErr;
+
+        if (teachersRes && teachersRes.length > 0) {
+          allTeachers = [...allTeachers, ...teachersRes];
+          rangeStart += batchSize;
+          if (teachersRes.length < batchSize) fetchMore = false;
+        } else {
+          fetchMore = false;
+        }
+      }
+
+      setTeachersList(allTeachers);
     } catch (err) {
       console.error("Error loading teachers master data from Supabase:", err.message);
     } finally {
@@ -61,14 +79,13 @@ export default function CourseRegistrationPanel({
     }
   }
 
-  // Derive available courses dynamically from teacher assignments filtered by the locked class level
+  // Flexible parsing to catch all teachers assigned to Primary 1 or active tier
   const derivedAvailableCourses = [];
   const seenCourseCodes = new Set();
 
   teachersList.forEach((teacher) => {
     let rawSubjects = teacher.assigned_subjects || [];
     
-    // Handle cases where assigned_subjects might be stored as a stringified JSON or comma-separated string
     if (typeof rawSubjects === "string") {
       try {
         rawSubjects = JSON.parse(rawSubjects);
@@ -86,8 +103,15 @@ export default function CourseRegistrationPanel({
       if (!code) return;
       const cleanCode = String(code).replace(/[*\[\]"]/g, "").trim().toUpperCase();
 
-      // Flexible matching logic for class level codes
-      const matchesClassLevel = cleanCode.includes(activeClassTier) || cleanCode === activeClassTier || cleanCode.includes(`-${activeClassTier}`);
+      const normalizedTier = activeClassTier.replace(/\s+/g, "");
+      const normalizedCode = cleanCode.replace(/\s+/g, "");
+
+      const matchesClassLevel = 
+        normalizedCode.includes(normalizedTier) || 
+        normalizedTier.includes(normalizedCode) || 
+        cleanCode.includes(activeClassTier) || 
+        cleanCode === activeClassTier;
+
       const isGeneralSecondaryFallback = !isPrimaryStudent && (cleanCode.includes("SEC") || cleanCode.includes("JSS"));
 
       if ((matchesClassLevel || isGeneralSecondaryFallback) && cleanCode && !seenCourseCodes.has(cleanCode)) {
@@ -103,7 +127,7 @@ export default function CourseRegistrationPanel({
     });
   });
 
-  // Fallback default courses if no teacher mapping is explicitly found yet for this tier
+  // Fallback defaults if no direct teacher mapping is detected yet for the tier
   if (derivedAvailableCourses.length === 0 && !loadingData) {
     const defaultCodes = isPrimaryStudent 
       ? [`ENG-${activeClassTier}`, `MTH-${activeClassTier}`]
@@ -146,6 +170,7 @@ export default function CourseRegistrationPanel({
     }
   }, [loadingData, activeClassTier, selectedTermFolder, teachersList]);
 
+  // Ensures teacher IDs and class level tiers are cleanly bound for teacher dashboard visibility
   async function syncAutomaticRegistrations() {
     if (!currentStudentEmail || derivedAvailableCourses.length === 0) return;
     setAutoRegistering(true);
