@@ -30,8 +30,8 @@ export default function CourseRegistrationPanel({
     
   const rawSection = studentSection || section || student?.section || studentData?.section || "";
 
-  // If we found an exact class, use it. Otherwise use the section. Default to JSS1 as an absolute fallback.
-  const activeClassTier = (rawExactClass || rawSection || "JSS 1").toUpperCase().trim();
+  // If we found an exact class, use it. Otherwise use the section. Default to Unassigned if nothing exists.
+  const activeClassTier = (rawExactClass || rawSection || "UNASSIGNED").toUpperCase().trim();
 
   const [selectedTermFolder, setSelectedTermFolder] = useState("1st Term");
   const [editingRecordId, setEditingRecordId] = useState(null);
@@ -92,27 +92,37 @@ export default function CourseRegistrationPanel({
   const seenCourseCodes = new Set();
 
   teachersList.forEach((teacher) => {
+    // --- Parse Subjects Robustly ---
     let rawSubjects = teacher.assigned_subjects || teacher.subjects || [];
-    
     if (typeof rawSubjects === "string") {
       try {
         rawSubjects = JSON.parse(rawSubjects);
       } catch {
-        rawSubjects = rawSubjects.split(",").map(s => s.trim());
+        rawSubjects = rawSubjects.split(",");
       }
     }
-
     const subjects = Array.isArray(rawSubjects) ? rawSubjects : [rawSubjects];
     const spec = (teacher.subject_specialization || "").replace(/[*\[\]"]/g, "").trim();
     
-    // Check all possible fields where admin might have typed the class level
-    const assignedClassroomsRaw = String(teacher.assigned_classrooms || teacher.class_level || teacher.section || "").toUpperCase();
+    // --- Parse Assigned Classrooms Robustly ---
+    let rawClasses = teacher.assigned_classrooms || teacher.class_level || teacher.section || "";
+    let assignedClassesArray = [];
     
-    // Split by comma in case admin assigned multiple classes to one teacher (e.g. "PRIMARY 1, PRIMARY 2")
-    const assignedClassesArray = assignedClassroomsRaw.split(',').map(c => c.trim());
+    if (typeof rawClasses === "string") {
+      try {
+        assignedClassesArray = JSON.parse(rawClasses);
+      } catch {
+        assignedClassesArray = rawClasses.split(",");
+      }
+    } else if (Array.isArray(rawClasses)) {
+      assignedClassesArray = rawClasses;
+    }
 
-    // STRICT MATCH: Does this teacher belong to EXACTLY activeClassTier?
-    const isTeacherForThisExactClass = assignedClassesArray.includes(activeClassTier) || assignedClassroomsRaw === activeClassTier;
+    // Normalize array to upper case and trim for strict matching
+    assignedClassesArray = assignedClassesArray.map(c => String(c).toUpperCase().trim());
+
+    // STRICT MATCH: Does this teacher's assigned classes include the student's active class tier?
+    const isTeacherForThisExactClass = assignedClassesArray.includes(activeClassTier);
 
     if (isTeacherForThisExactClass) {
       const allTeacherCodes = [...subjects, spec];
@@ -140,19 +150,30 @@ export default function CourseRegistrationPanel({
     const target = (courseCode || "").replace(/[*\[\]"]/g, "").trim().toUpperCase();
     
     const matched = teachersList.find((teacher) => {
+      // Parse Subjects
       let subjects = teacher.assigned_subjects || teacher.subjects || [];
       if (typeof subjects === "string") {
-        try { subjects = JSON.parse(subjects); } catch { subjects = [subjects]; }
+        try { subjects = JSON.parse(subjects); } catch { subjects = subjects.split(","); }
       }
+      if (!Array.isArray(subjects)) subjects = [subjects];
+      
       const spec = (teacher.subject_specialization || "").replace(/[*\[\]"]/g, "").trim().toUpperCase();
       
-      const assignedClassroomsRaw = String(teacher.assigned_classrooms || teacher.class_level || teacher.section || "").toUpperCase();
-      const assignedClassesArray = assignedClassroomsRaw.split(',').map(c => c.trim());
-      const isTeacherForThisExactClass = assignedClassesArray.includes(activeClassTier) || assignedClassroomsRaw === activeClassTier;
+      // Parse Classes
+      let rawClasses = teacher.assigned_classrooms || teacher.class_level || teacher.section || "";
+      let assignedClassesArray = [];
+      if (typeof rawClasses === "string") {
+        try { assignedClassesArray = JSON.parse(rawClasses); } catch { assignedClassesArray = rawClasses.split(","); }
+      } else if (Array.isArray(rawClasses)) {
+        assignedClassesArray = rawClasses;
+      }
+      assignedClassesArray = assignedClassesArray.map(c => String(c).toUpperCase().trim());
+
+      const isTeacherForThisExactClass = assignedClassesArray.includes(activeClassTier);
 
       if (!isTeacherForThisExactClass) return false;
 
-      const matchesSubject = Array.isArray(subjects) && subjects.some((s) => {
+      const matchesSubject = subjects.some((s) => {
         const cleanS = String(s).replace(/[*\[\]"]/g, "").trim().toUpperCase();
         return cleanS === target;
       });

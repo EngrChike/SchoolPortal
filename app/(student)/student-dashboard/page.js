@@ -378,6 +378,7 @@ export default function StudentDashboard() {
             <CourseRegistrationPanel
               currentStudentEmail={currentStudentEmail}
               studentSection={studentSection}
+              studentClassLevel={classLevel} // <--- FIX APPLIED HERE
               availableCourses={availableCourses}
               setAvailableCourses={setAvailableCourses}
               registeredCourseIds={registeredCourseIds}
