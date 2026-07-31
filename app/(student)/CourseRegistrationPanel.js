@@ -7,12 +7,15 @@ export default function CourseRegistrationPanel({
   currentStudentEmail,
   studentSection,
   studentClassLevel,
+  classLevel, // Fallback prop added
+  currentClass, // Fallback prop added
+  section, // Fallback prop added
   registeredCourseIds = [],
   performanceRecords = [],
   refreshRegistrations,
 }) {
-  // Capture exact class level string (e.g., "PRIMARY 1") without stripping out the grade digit
-  const rawTier = studentClassLevel || studentSection || "JSS1";
+  // Capture exact class level by checking all possible prop names from the parent
+  const rawTier = studentClassLevel || classLevel || currentClass || studentSection || section || "JSS1";
   const activeClassTier = rawTier.toUpperCase().trim();
   const isPrimaryStudent = activeClassTier.includes("PRIMARY") || activeClassTier.includes("PRI") || activeClassTier.includes("PRY");
 
@@ -226,7 +229,7 @@ export default function CourseRegistrationPanel({
         .eq("school_term", termName);
 
       if (error) throw error;
-      alert(`✅ Curriculum successfully cleared for ${activeClassTier} (${termName})!`);
+      alert(`✅ Curriculum successfully cleared for ${activeClassTier} (${termName})! The dashboard will now sync fresh data from the admin table.`);
       if (typeof refreshRegistrations === "function") {
         await refreshRegistrations(currentStudentEmail);
       }
@@ -297,9 +300,9 @@ export default function CourseRegistrationPanel({
 
         <div className="flex items-center justify-between p-4 bg-amber-50/60 border border-amber-200/60 rounded-2xl">
           <div>
-            <h4 className="text-xs font-bold text-amber-900 uppercase">Term Curriculum Management</h4>
+            <h4 className="text-xs font-bold text-amber-900 uppercase">Clear Old Saved Data</h4>
             <p className="text-[11px] text-amber-700 mt-0.5">
-              Reset automated records under <span className="font-bold underline">{activeClassTier} - {selectedTermFolder}</span>.
+              If you are seeing old/incorrect courses, click the clear button to wipe your database records and force a fresh sync from the admin panel.
             </p>
           </div>
           <button
