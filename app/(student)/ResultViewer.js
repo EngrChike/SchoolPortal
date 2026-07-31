@@ -41,7 +41,7 @@ export default function ResultViewer({
   return (
     <div className="w-full max-w-4xl mx-auto px-2 sm:px-4">
       
-      {/* Advanced Print CSS to wipe out browser headers/footers and lock everything into page 1 */}
+      {/* Advanced Print CSS to wipe out browser headers/footers, lock everything into page 1, and force image rendering */}
       <style dangerouslySetInnerHTML={{__html: `
         @media print {
           @page {
@@ -76,6 +76,21 @@ export default function ResultViewer({
             left: 0 !important;
             transform: scale(0.95);
             transform-origin: top center;
+          }
+
+          /* Force Images to render and prevent parent containers from collapsing */
+          .print-sheet-node img {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            max-width: 100% !important;
+            max-height: 100% !important;
+          }
+            
+          .print-image-container {
+            display: flex !important;
+            min-height: 50px !important;
+            min-width: 100px !important;
           }
 
           .print-stamp-box {
@@ -124,16 +139,16 @@ export default function ResultViewer({
               <h2 className="text-[7rem] font-black uppercase text-slate-900 tracking-tight rotate-12 select-none">OFFICIAL</h2>
             </div>
 
-            {/* Centered Header Section (Matches Image exactly) */}
+            {/* Centered Header Section */}
             <div className="flex flex-col items-center justify-center text-center border-b border-slate-100 pb-6">
-              <div className="h-16 w-16 mb-3 overflow-hidden flex items-center justify-center">
+              <div className="h-16 w-16 mb-3 overflow-hidden flex items-center justify-center print-image-container">
                 <img src="/logo.png" alt="Institutional Seal" className="w-full h-full object-contain" />
               </div>
               <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight uppercase">Don Chike International School</h2>
               <p className="text-[10px] sm:text-xs font-bold text-indigo-600 mt-1 uppercase tracking-widest">Official Academic Performance Record</p>
             </div>
 
-            {/* Student Info Box (Matches Image 2-column layout) */}
+            {/* Student Info Box */}
             <div className="border border-slate-200 rounded-2xl p-5 bg-white flex flex-col sm:flex-row justify-between gap-4 text-xs">
               <div className="space-y-3">
                 <p><span className="font-bold text-slate-600">Student Full Name:</span> <span className="font-black text-slate-800 ml-1">{fullName || "N/A"}</span></p>
@@ -145,7 +160,7 @@ export default function ResultViewer({
               </div>
             </div>
 
-            {/* Performance Table (Matches Image layout with separated columns) */}
+            {/* Performance Table */}
             <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse min-w-[600px]">
@@ -161,7 +176,6 @@ export default function ResultViewer({
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-[11px] text-slate-800 font-medium">
                     {performanceRecords.map((rec, i) => {
-                      // Parse numeric scores for accurate math, defaulting to 0 internally but "-" for display if empty
                       const rawCA = rec.continuous_assessment;
                       const rawMid = rec.mid_semester;
                       const rawExam = rec.final_exam;
@@ -171,18 +185,19 @@ export default function ResultViewer({
                       const examScore = Number(rawExam) || 0;
                       const totalScore = caScore + midScore + examScore;
 
-                      // Display values: mimic the image's use of "-" for empty rows
                       const displayCA = rawCA != null && rawCA !== "" ? rawCA : "-";
                       const displayMid = rawMid != null && rawMid !== "" ? rawMid : "-";
                       const displayExam = rawExam != null && rawExam !== "" ? rawExam : "-";
 
-                      // Fix Module Course Name fallback logic
                       const courseCode = rec.courses?.code || rec.course_id || "N/A";
                       const courseName = rec.courses?.name || rec.courses?.title || rec.course_name || courseCode.replace(/-/g, " ");
 
+                      // 🔥 FIX: Split by hyphen and take only the first part to remove initials (e.g. CHE101-JD becomes CHE101)
+                      const displayCourseCode = courseCode.split('-')[0];
+
                       return (
                         <tr key={i} className="hover:bg-slate-50/30 transition-colors">
-                          <td className="py-4 px-5 font-bold text-indigo-600 uppercase">{courseCode}</td>
+                          <td className="py-4 px-5 font-bold text-indigo-600 uppercase">{displayCourseCode}</td>
                           <td className="py-4 px-5 font-black text-slate-900">{courseName}</td>
                           <td className="py-4 px-5 text-center text-slate-600">{displayCA}</td>
                           <td className="py-4 px-5 text-center text-slate-600">{displayMid}</td>
@@ -207,7 +222,7 @@ export default function ResultViewer({
             {/* Stamp & Signature Section */}
             <div className="pt-6 border-t-2 border-slate-200 grid grid-cols-2 gap-6 items-end mt-4">
               <div className="flex flex-col items-start">
-                <div className="h-14 w-28 flex items-center justify-center mb-2 relative">
+                <div className="h-14 w-28 flex items-center justify-center mb-2 relative print-image-container">
                   {schoolStamp && <img src={schoolStamp} alt="Official Stamp" className="max-h-full object-contain" />}
                 </div>
                 <div className="w-full max-w-[140px] print-stamp-box border border-slate-300 rounded-xl py-2 px-2 bg-slate-50 text-center shadow-xs">
@@ -216,7 +231,7 @@ export default function ResultViewer({
               </div>
               
               <div className="flex flex-col items-end text-right">
-                <div className="h-14 w-32 flex items-center justify-end mb-2">
+                <div className="h-14 w-32 flex items-center justify-end mb-2 print-image-container">
                   {adminSignature && <img src={adminSignature} alt="Signature" className="max-h-full object-contain" />}
                 </div>
                 <div className="w-full max-w-[160px] print-signature-line border-b-2 border-slate-400 pb-1.5 text-center">
