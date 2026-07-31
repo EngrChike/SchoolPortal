@@ -24,19 +24,32 @@ export default function CourseRegistrationPanel({
   const [loadingData, setLoadingData] = useState(true);
 
   const subjectTitleMap = {
-    "MTH-JSS1": "Mathematics",
-    "ENG-JSS1": "English Language",
-    "BAS-JSS1": "Basic Science",
-    "BUS-JSS1": "Business Studies",
-    "SST-JSS1": "Social Studies",
-    "MTH-SEC": "Mathematics",
-    "ENG-SEC": "English Language",
-    "BAS-SEC": "Basic Science",
-    "BUS-SEC": "Business Studies",
-    "MTH-PRI1": "Mathematics",
-    "ENG-PRI1": "English Language",
-    "BST-PRI1": "Basic Science & Technology",
-    "CCCR-PRI1": "Civic Education"
+    // Secondary & General Mappings
+    "MTH-JSS1": "Mathematics", "ENG-JSS1": "English Language", "BAS-JSS1": "Basic Science", "BUS-JSS1": "Business Studies", "SST-JSS1": "Social Studies",
+    "MTH-JSS2": "Mathematics", "ENG-JSS2": "English Language", "BAS-JSS2": "Basic Science", "BUS-JSS2": "Business Studies", "SST-JSS2": "Social Studies",
+    "MTH-JSS3": "Mathematics", "ENG-JSS3": "English Language", "BAS-JSS3": "Basic Science", "BUS-JSS3": "Business Studies", "SST-JSS3": "Social Studies",
+    "MTH-SS1": "Mathematics", "ENG-SS1": "English Language", "MTH-SS2": "Mathematics", "ENG-SS2": "English Language", "MTH-SS3": "Mathematics", "ENG-SS3": "English Language",
+    "MTH-SEC": "Mathematics", "ENG-SEC": "English Language", "BAS-SEC": "Basic Science", "BUS-SEC": "Business Studies",
+
+    // Primary 1 to 6 Comprehensive Mappings
+    "MTH-PRIMARY 1": "Mathematics", "ENG-PRIMARY 1": "English Language", "BST-PRIMARY 1": "Basic Science & Technology", "CCCR-PRIMARY 1": "Civic Education",
+    "MTH-PRIMARY 2": "Mathematics", "ENG-PRIMARY 2": "English Language", "BST-PRIMARY 2": "Basic Science & Technology", "CCCR-PRIMARY 2": "Civic Education",
+    "MTH-PRIMARY 3": "Mathematics", "ENG-PRIMARY 3": "English Language", "BST-PRIMARY 3": "Basic Science & Technology", "CCCR-PRIMARY 3": "Civic Education",
+    "MTH-PRIMARY 4": "Mathematics", "ENG-PRIMARY 4": "English Language", "BST-PRIMARY 4": "Basic Science & Technology", "CCCR-PRIMARY 4": "Civic Education",
+    "MTH-PRIMARY 5": "Mathematics", "ENG-PRIMARY 5": "English Language", "BST-PRIMARY 5": "Basic Science & Technology", "CCCR-PRIMARY 5": "Civic Education",
+    "MTH-PRIMARY 6": "Mathematics", "ENG-PRIMARY 6": "English Language", "BST-PRIMARY 6": "Basic Science & Technology", "CCCR-PRIMARY 6": "Civic Education",
+
+    // Short-codes & Direct Strings
+    "MTH-PRIMARY": "Mathematics",
+    "ENG-PRIMARY": "English Language",
+    "BASIC SCIENCE AND TECHNOLOGY": "Basic Science & Technology",
+    "BST-PRIMARY": "Basic Science & Technology",
+    "MTH-PRI1": "Mathematics", "ENG-PRI1": "English Language", "BST-PRI1": "Basic Science & Technology", "CCCR-PRI1": "Civic Education",
+    "MTH-PRI2": "Mathematics", "ENG-PRI2": "English Language", "BST-PRI2": "Basic Science & Technology",
+    "MTH-PRI3": "Mathematics", "ENG-PRI3": "English Language", "BST-PRI3": "Basic Science & Technology",
+    "MTH-PRI4": "Mathematics", "ENG-PRI4": "English Language", "BST-PRI4": "Basic Science & Technology",
+    "MTH-PRI5": "Mathematics", "ENG-PRI5": "English Language", "BST-PRI5": "Basic Science & Technology",
+    "MTH-PRI6": "Mathematics", "ENG-PRI6": "English Language", "BST-PRI6": "Basic Science & Technology"
   };
 
   useEffect(() => {
@@ -79,7 +92,7 @@ export default function CourseRegistrationPanel({
     }
   }
 
-  // Flexible parsing to catch all teachers assigned to Primary 1 or active tier
+  // Flexible parsing to catch all teachers assigned across full primary/secondary tiers
   const derivedAvailableCourses = [];
   const seenCourseCodes = new Set();
 
@@ -96,6 +109,7 @@ export default function CourseRegistrationPanel({
 
     const subjects = Array.isArray(rawSubjects) ? rawSubjects : [rawSubjects];
     const spec = (teacher.subject_specialization || "").replace(/[*\[\]"]/g, "").trim();
+    const assignedClassroom = String(teacher.assigned_classrooms || teacher.class_level || teacher.section || "").toUpperCase().trim();
     
     const allTeacherCodes = [...subjects, spec];
 
@@ -105,14 +119,18 @@ export default function CourseRegistrationPanel({
 
       const normalizedTier = activeClassTier.replace(/\s+/g, "");
       const normalizedCode = cleanCode.replace(/\s+/g, "");
+      const normalizedClassroom = assignedClassroom.replace(/\s+/g, "");
 
       const matchesClassLevel = 
         normalizedCode.includes(normalizedTier) || 
         normalizedTier.includes(normalizedCode) || 
         cleanCode.includes(activeClassTier) || 
-        cleanCode === activeClassTier;
+        cleanCode === activeClassTier ||
+        normalizedClassroom === normalizedTier ||
+        normalizedClassroom.includes(normalizedTier) ||
+        normalizedTier.includes(normalizedClassroom);
 
-      const isGeneralSecondaryFallback = !isPrimaryStudent && (cleanCode.includes("SEC") || cleanCode.includes("JSS"));
+      const isGeneralSecondaryFallback = !isPrimaryStudent && (cleanCode.includes("SEC") || cleanCode.includes("JSS") || cleanCode.includes("SS"));
 
       if ((matchesClassLevel || isGeneralSecondaryFallback) && cleanCode && !seenCourseCodes.has(cleanCode)) {
         seenCourseCodes.add(cleanCode);
@@ -125,12 +143,26 @@ export default function CourseRegistrationPanel({
         });
       }
     });
+
+    if (assignedClassroom && (assignedClassroom === activeClassTier || assignedClassroom.includes(activeClassTier) || activeClassTier.includes(assignedClassroom))) {
+      const fallbackSubjectCode = spec || (subjects[0] ? String(subjects[0]).replace(/[*\[\]"]/g, "").trim().toUpperCase() : "");
+      if (fallbackSubjectCode && !seenCourseCodes.has(fallbackSubjectCode)) {
+        seenCourseCodes.add(fallbackSubjectCode);
+        derivedAvailableCourses.push({
+          id: fallbackSubjectCode,
+          code: fallbackSubjectCode,
+          title: subjectTitleMap[fallbackSubjectCode] || fallbackSubjectCode.replace(/-/g, " "),
+          teacher_name: teacher.name || teacher.full_name || "Assigned Faculty",
+          teacher_id: teacher.id || teacher.teacher_id || null
+        });
+      }
+    }
   });
 
   // Fallback defaults if no direct teacher mapping is detected yet for the tier
   if (derivedAvailableCourses.length === 0 && !loadingData) {
     const defaultCodes = isPrimaryStudent 
-      ? [`ENG-${activeClassTier}`, `MTH-${activeClassTier}`]
+      ? [`ENG-${activeClassTier}`, `MTH-${activeClassTier}`, `BASIC SCIENCE AND TECHNOLOGY`]
       : [`MTH-${activeClassTier}`, `ENG-${activeClassTier}`, `BAS-${activeClassTier}`, `BUS-${activeClassTier}`];
       
     defaultCodes.forEach(code => {
@@ -152,13 +184,16 @@ export default function CourseRegistrationPanel({
         try { subjects = JSON.parse(subjects); } catch { subjects = [subjects]; }
       }
       const spec = (teacher.subject_specialization || "").replace(/[*\[\]"]/g, "").trim().toUpperCase();
+      const assignedClassroom = String(teacher.assigned_classrooms || teacher.class_level || teacher.section || "").toUpperCase().trim();
       
       const matchesSubject = Array.isArray(subjects) && subjects.some((s) => {
         const cleanS = String(s).replace(/[*\[\]"]/g, "").trim().toUpperCase();
         return cleanS === target || cleanS.includes(target) || target.includes(cleanS);
       });
 
-      return matchesSubject || spec === target || spec.includes(target);
+      const matchesClass = assignedClassroom === activeClassTier || assignedClassroom.includes(activeClassTier) || activeClassTier.includes(assignedClassroom);
+
+      return matchesSubject || spec === target || spec.includes(target) || (matchesClass && (matchesSubject || spec));
     });
 
     return matched ? (matched.name || matched.full_name || "Assigned Faculty") : "Assigned Faculty";
