@@ -139,7 +139,7 @@ export default function AdminManageStudentsPage() {
 
   // Delete Student Record
   async function handleDeleteStudent(studentId) {
-    if (!confirm("Are you sure you want to delete this student record?")) return;
+    if (!confirm("Are you sure you want to delete this student record? This will unmap them from all teachers.")) return;
 
     try {
       const { error } = await supabase
@@ -208,8 +208,8 @@ export default function AdminManageStudentsPage() {
       email: "",
       school_tier: activeTier, 
       class_level: activeClass, 
-      academic_session: "2026/2027",
-      current_term: "term_1"
+      academic_session: formData.academic_session || "2026/2027",
+      current_term: formData.current_term || "term_1"
     });
     setIsModalOpen(true);
   };
@@ -238,10 +238,11 @@ export default function AdminManageStudentsPage() {
           .eq("id", editingStudentId);
 
         if (error) throw error;
-        alert("✨ Student profile updated successfully!");
+        alert("✨ Student profile structurally updated!");
       } else {
-        // Insert new student with tier-matched curriculum mapping to link with teacher/course panels
-        const generatedRegNo = `STU-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+        // Insert new student with dynamic Reg Number based on selected session year
+        const sessionStartYear = formData.academic_session.split("/")[0];
+        const generatedRegNo = `STU-${sessionStartYear}-${Math.floor(1000 + Math.random() * 9000)}`;
         
         const { error } = await supabase.from("students").insert([
           {
@@ -257,16 +258,17 @@ export default function AdminManageStudentsPage() {
         ]);
 
         if (error) throw error;
-        alert("🎉 Student successfully onboarded and linked to curriculum!");
+        alert("🎉 Student successfully onboarded and permanently locked to curriculum!");
       }
 
+      // Smart Reset: Clear personal details but KEEP the class/session context for faster bulk entry
       setFormData({ 
         name: "", 
         email: "", 
-        school_tier: "secondary", 
-        class_level: "jss1",
-        academic_session: "2026/2027",
-        current_term: "term_1"
+        school_tier: normalizedTier, 
+        class_level: normalizedClass,
+        academic_session: formData.academic_session,
+        current_term: formData.current_term
       });
       setEditingStudentId(null);
       setIsModalOpen(false);
@@ -301,6 +303,7 @@ export default function AdminManageStudentsPage() {
           <div className="text-xs font-mono text-slate-400 animate-pulse">Syncing layout asset references...</div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 pt-2">
+            {/* Logo Upload */}
             <div className="p-4 rounded-xl border border-slate-100 bg-slate-50/60 flex flex-col items-center justify-between space-y-3">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">1. School Crest Logo</span>
               <div className="h-16 w-16 bg-white border border-slate-200 rounded-xl overflow-hidden flex items-center justify-center p-1">
@@ -312,6 +315,7 @@ export default function AdminManageStudentsPage() {
               </label>
             </div>
 
+            {/* Stamp Upload */}
             <div className="p-4 rounded-xl border border-slate-100 bg-slate-50/60 flex flex-col items-center justify-between space-y-3">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">2. Official Security Stamp</span>
               <div className="h-16 w-28 bg-white border border-slate-200 rounded-xl overflow-hidden flex items-center justify-center p-1">
@@ -323,6 +327,7 @@ export default function AdminManageStudentsPage() {
               </label>
             </div>
 
+            {/* Signature Upload */}
             <div className="p-4 rounded-xl border border-slate-100 bg-slate-50/60 flex flex-col items-center justify-between space-y-3">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">3. Admin Signature Field</span>
               <div className="h-16 w-28 bg-white border border-slate-200 rounded-xl overflow-hidden flex items-center justify-center p-1">
@@ -341,7 +346,7 @@ export default function AdminManageStudentsPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm gap-4">
         <div>
           <h1 className="text-lg sm:text-xl font-black text-slate-800 tracking-tight uppercase">Student Registry Engine</h1>
-          <p className="text-xs text-slate-500 mt-0.5">Onboard student profiles, manage passports, and assign result lock key tokens.</p>
+          <p className="text-xs text-slate-500 mt-0.5">Onboard student profiles, manage placements, and assign result lock key tokens.</p>
         </div>
         <button
           onClick={handleOpenOnboardModal}
@@ -357,7 +362,6 @@ export default function AdminManageStudentsPage() {
         {/* SIDEBAR TIER LEVEL CONTROLS PANEL */}
         <div className="lg:col-span-3 bg-white border border-slate-200 shadow-sm rounded-2xl p-4 space-y-6 w-full">
           
-          {/* Master Tier Selector Triggers */}
           <div className="flex flex-col gap-2">
             <span className="text-[10px] font-black tracking-wider text-slate-400 uppercase px-1">Select School Level</span>
             <button
@@ -384,7 +388,6 @@ export default function AdminManageStudentsPage() {
 
           <hr className="border-slate-100" />
 
-          {/* Dynamic Class Levels Stack Engine */}
           <div className="space-y-1">
             <span className="text-[10px] font-black tracking-wider text-slate-400 uppercase px-1 block mb-2">Available Classes</span>
             {(activeTier === "primary" ? primaryClasses : secondaryClasses).map((cls) => (
@@ -426,9 +429,9 @@ export default function AdminManageStudentsPage() {
                     <th className="px-4 py-4">Avatar Profile</th>
                     <th className="px-4 py-4">Reg Number</th>
                     <th className="px-4 py-4">Full Legal Name</th>
-                    <th className="px-4 py-4">Session/Term Info</th>
+                    <th className="px-4 py-4">Placement / Session Info</th>
                     <th className="px-4 py-4 text-center">Security PIN</th>
-                    <th className="px-4 py-4 text-center">Actions</th>
+                    <th className="px-4 py-4 text-center">Admin Controls</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs text-slate-600 font-medium">
@@ -451,9 +454,14 @@ export default function AdminManageStudentsPage() {
                         <div className="text-[10px] text-slate-400 font-mono mt-0.5 break-all">{student.email}</div>
                       </td>
                       
-                      <td className="px-4 py-4 font-mono text-[11px] whitespace-nowrap">
-                        <div className="text-slate-700 font-bold">{student.academic_session}</div>
-                        <div className="text-indigo-600 text-[10px] font-bold uppercase tracking-wide mt-0.5">{student.current_term}</div>
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <div className="text-slate-700 font-bold font-mono text-[11px]">{student.academic_session}</div>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <span className="text-indigo-600 text-[10px] font-bold uppercase tracking-wide bg-indigo-50 px-1.5 py-0.5 rounded">{student.current_term}</span>
+                          <span className="text-slate-500 text-[10px] font-bold uppercase flex items-center gap-1 bg-slate-100 px-1.5 py-0.5 rounded" title="Locked by Admin">
+                            🔒 {student.class_level}
+                          </span>
+                        </div>
                       </td>
 
                       <td className="px-4 py-4 text-center whitespace-nowrap">
@@ -482,7 +490,7 @@ export default function AdminManageStudentsPage() {
                             onClick={() => handleOpenEditModal(student)}
                             className="bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold text-[10px] px-2.5 py-1.5 rounded-lg transition-all border border-amber-200 cursor-pointer"
                           >
-                            ✏️ Edit
+                            ✏️ Promote/Edit
                           </button>
                           <button
                             type="button"
@@ -507,8 +515,9 @@ export default function AdminManageStudentsPage() {
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150 my-auto">
             <div className="p-4 sm:p-6 border-b border-slate-100 flex justify-between items-center">
-              <h3 className="text-xs sm:text-sm font-black text-slate-800 uppercase tracking-tight">
-                {editingStudentId ? "Edit Student Profile" : "Onboard Pre-Account System"}
+              <h3 className="text-xs sm:text-sm font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
+                {editingStudentId ? "Promote / Update Student" : "Onboard Pre-Account System"}
+                <span className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full border border-indigo-100">Admin Only</span>
               </h3>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-xl cursor-pointer">×</button>
             </div>
@@ -541,7 +550,9 @@ export default function AdminManageStudentsPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1.5 tracking-wider">School Level Tier</label>
+                  <label className="flex items-center gap-1 text-[10px] font-bold uppercase text-slate-500 mb-1.5 tracking-wider">
+                    🔒 School Level Tier
+                  </label>
                   <select
                     value={formData.school_tier}
                     onChange={(e) => handleFormTierChange(e.target.value)}
@@ -552,7 +563,9 @@ export default function AdminManageStudentsPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1.5 tracking-wider">Assigned Classroom</label>
+                  <label className="flex items-center gap-1 text-[10px] font-bold uppercase text-slate-500 mb-1.5 tracking-wider">
+                    🔒 Assigned Classroom
+                  </label>
                   <select
                     value={formData.class_level}
                     onChange={(e) => setFormData({ ...formData, class_level: e.target.value })}
@@ -595,7 +608,7 @@ export default function AdminManageStudentsPage() {
               <div className="flex gap-4 pt-4 border-t border-slate-100 mt-6">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 bg-slate-100 text-slate-700 font-bold text-xs py-2.5 rounded-xl cursor-pointer">Cancel</button>
                 <button type="submit" disabled={isSubmitting} className="flex-1 bg-blue-600 text-white font-bold text-xs py-2.5 rounded-xl cursor-pointer shadow-md">
-                  {isSubmitting ? "Processing..." : (editingStudentId ? "Save Changes" : "Generate Account")}
+                  {isSubmitting ? "Processing..." : (editingStudentId ? "Save Locked Placements" : "Generate Locked Account")}
                 </button>
               </div>
             </form>

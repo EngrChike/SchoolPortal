@@ -19,9 +19,9 @@ export default function StudentBioPanel({
   parentPhone,
   setParentPhone,
   studentSection,
-  setStudentSection,
+  setStudentSection, // Kept in props for parent state, but unused here
   classLevel,
-  setClassLevel,
+  setClassLevel, // Kept in props for parent state, but unused here
   passportFile,
   setPassportFile,
   passportPreview,
@@ -79,9 +79,8 @@ export default function StudentBioPanel({
         finalPassportUrl = publicUrlData.publicUrl;
       }
 
-      // Synchronize exact lowercase tier for admin filters and exact class level for curriculum mapping
-      const normalizedTier = (studentSection || "").toLowerCase().trim();
-
+      // Security Update: Removed section, school_tier, and class_level from the payload.
+      // This guarantees students cannot inject placement changes via browser dev tools.
       const { error: updateError } = await supabase
         .from("students")
         .update({
@@ -91,9 +90,6 @@ export default function StudentBioPanel({
           dob: dob,
           parent_name: parentName.trim(),
           parent_phone: parentPhone.trim(),
-          section: studentSection,
-          school_tier: normalizedTier.includes("primary") ? "primary" : "secondary",
-          class_level: classLevel,
           passport_url: finalPassportUrl
         })
         .eq("email", currentStudentEmail);
@@ -162,46 +158,41 @@ export default function StudentBioPanel({
             />
           </div>
           <div>
-            <label className="block text-xs font-bold uppercase text-slate-400 tracking-wider mb-1.5">Registration Identifier</label>
-            <input type="text" disabled value={regNumber || "Pending Allocation"} className="w-full rounded-xl border border-slate-200 p-3 text-sm text-slate-400 bg-slate-100 outline-none cursor-not-allowed font-mono" />
+            <label className="flex items-center gap-1.5 text-xs font-bold uppercase text-slate-400 tracking-wider mb-1.5">
+              🔒 Registration Identifier
+            </label>
+            <input 
+              type="text" 
+              disabled 
+              value={regNumber || "Pending Allocation"} 
+              className="w-full rounded-xl border border-slate-200 p-3 text-sm text-slate-400 bg-slate-100 outline-none cursor-not-allowed font-mono" 
+            />
           </div>
         </div>
 
-        {/* Section and Class Tier Selectors - Both locked when not editing */}
+        {/* Section and Class Tier Selectors - PERMANENTLY LOCKED */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
           <div>
-            <label className="block text-xs font-bold uppercase text-slate-400 tracking-wider mb-1.5">School Level Tier (Primary / Secondary)</label>
-            <select
-              disabled={!isEditingBio}
-              value={studentSection}
-              onChange={(e) => setStudentSection(e.target.value)}
-              className={`w-full rounded-xl border border-slate-200 p-3 text-sm font-bold outline-none tracking-wide ${!isEditingBio ? "bg-slate-100 text-slate-500 cursor-not-allowed" : "bg-indigo-50 text-indigo-700 focus:border-indigo-600"}`}
-            >
-              <option value="Primary">Primary</option>
-              <option value="Secondary">Secondary</option>
-            </select>
+            <label className="flex items-center gap-1.5 text-xs font-bold uppercase text-slate-400 tracking-wider mb-1.5">
+              🔒 School Level Tier
+            </label>
+            <input
+              type="text"
+              disabled
+              value={studentSection || "Pending Placement"}
+              className="w-full rounded-xl border border-slate-200 p-3 text-sm font-bold text-slate-500 bg-slate-100 outline-none cursor-not-allowed capitalize"
+            />
           </div>
           <div>
-            <label className="block text-xs font-bold uppercase text-slate-400 tracking-wider mb-1.5">Assigned Class Level</label>
-            <select
-              disabled={!isEditingBio}
-              value={classLevel}
-              onChange={(e) => setClassLevel(e.target.value)}
-              className={`w-full rounded-xl border border-slate-200 p-3 text-sm font-bold outline-none tracking-wide ${!isEditingBio ? "bg-slate-100 text-slate-500 cursor-not-allowed" : "bg-indigo-50 text-indigo-700 focus:border-indigo-600"}`}
-            >
-              <option value="JSS1">JSS1</option>
-              <option value="JSS2">JSS2</option>
-              <option value="JSS3">JSS3</option>
-              <option value="SS1">SS1</option>
-              <option value="SS2">SS2</option>
-              <option value="SS3">SS3</option>
-              <option value="Primary 1">Primary 1</option>
-              <option value="Primary 2">Primary 2</option>
-              <option value="Primary 3">Primary 3</option>
-              <option value="Primary 4">Primary 4</option>
-              <option value="Primary 5">Primary 5</option>
-              <option value="Primary 6">Primary 6</option>
-            </select>
+            <label className="flex items-center gap-1.5 text-xs font-bold uppercase text-slate-400 tracking-wider mb-1.5">
+              🔒 Assigned Class Level
+            </label>
+            <input
+              type="text"
+              disabled
+              value={classLevel || "Pending Placement"}
+              className="w-full rounded-xl border border-slate-200 p-3 text-sm font-bold text-slate-500 bg-slate-100 outline-none cursor-not-allowed uppercase"
+            />
           </div>
         </div>
 
@@ -247,8 +238,15 @@ export default function StudentBioPanel({
             />
           </div>
           <div>
-            <label className="block text-xs font-bold uppercase text-slate-400 tracking-wider mb-1.5">Institutional Email</label>
-            <input type="text" disabled value={currentStudentEmail} className="w-full rounded-xl border border-slate-200 p-3 text-sm text-slate-400 bg-slate-100 outline-none cursor-not-allowed truncate" />
+            <label className="flex items-center gap-1.5 text-xs font-bold uppercase text-slate-400 tracking-wider mb-1.5">
+              🔒 Institutional Email
+            </label>
+            <input 
+              type="text" 
+              disabled 
+              value={currentStudentEmail} 
+              className="w-full rounded-xl border border-slate-200 p-3 text-sm text-slate-400 bg-slate-100 outline-none cursor-not-allowed truncate" 
+            />
           </div>
         </div>
 

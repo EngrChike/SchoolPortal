@@ -10,7 +10,6 @@ export default function ManageTeachersPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingTeacherId, setEditingTeacherId] = useState(null);
   
-  // Tab control for separating Primary vs Secondary roster views
   const [activeTab, setActiveTab] = useState("secondary");
 
   const [formData, setFormData] = useState({
@@ -23,6 +22,7 @@ export default function ManageTeachersPage() {
     assigned_subjects: []
   });
 
+  // Strict architectural mapping: These EXACT keys will be used to match the Student Biodata
   const classOptions = {
     primary: ["primary_1", "primary_2", "primary_3", "primary_4", "primary_5", "primary_6"],
     secondary: ["jss1", "jss2", "jss3", "ss1", "ss2", "ss3"]
@@ -110,6 +110,7 @@ export default function ManageTeachersPage() {
     }
   };
 
+  // Crucial Security Step: Wipe classes and subjects if tier changes to prevent ghost data
   const handleTierChange = (tier) => {
     setFormData({
       ...formData,
@@ -152,6 +153,7 @@ export default function ManageTeachersPage() {
     setIsSubmitting(true);
 
     try {
+      // Force strict validation against the selected tier before payload submission
       const validTierOptions = classOptions[formData.school_tier];
       const strictAssignedClasses = formData.assigned_classes.filter(cls => 
         validTierOptions.includes(cls)
@@ -163,7 +165,6 @@ export default function ManageTeachersPage() {
         validSubjectCodes.includes(subj)
       );
 
-      // Clean payload matching exact Supabase 'teachers' table columns (removed non-existent 'subject' column)
       const payload = {
         name: formData.name.trim(),
         email: formData.email.trim().toLowerCase(),

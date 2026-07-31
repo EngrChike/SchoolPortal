@@ -6,11 +6,12 @@ import { supabase } from "../../lib/supabaseClient";
 export default function CourseRegistrationPanel({
   currentStudentEmail,
   studentSection,
-  studentClassLevel = "JSS1",
+  studentClassLevel,
   registeredCourseIds = [],
   performanceRecords = [],
   refreshRegistrations,
 }) {
+  // Dynamically derive the active class tier without hardcoding a mismatched fallback
   const rawTier = studentClassLevel || studentSection || "JSS1";
   const activeClassTier = rawTier.toUpperCase().trim();
   const isPrimaryStudent = activeClassTier.includes("PRIMARY") || activeClassTier.includes("PRI") || activeClassTier.includes("PRY");
@@ -23,6 +24,7 @@ export default function CourseRegistrationPanel({
   const [teachersList, setTeachersList] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
 
+  // Expanded subject title map to handle both secondary and primary nomenclatures cleanly
   const subjectTitleMap = {
     "MTH-JSS1": "Mathematics",
     "ENG-JSS1": "English Language",
@@ -32,12 +34,16 @@ export default function CourseRegistrationPanel({
     "MTH-SEC": "Mathematics",
     "ENG-SEC": "English Language",
     "BAS-SEC": "Basic Science",
-    "BUS-SEC": "Business Studies"
+    "BUS-SEC": "Business Studies",
+    "MTH-PRI1": "Mathematics",
+    "ENG-PRI1": "English Language"
   };
 
   useEffect(() => {
-    fetchDatabaseMasterData();
-  }, []);
+    if (currentStudentEmail) {
+      fetchDatabaseMasterData();
+    }
+  }, [currentStudentEmail, activeClassTier]);
 
   async function fetchDatabaseMasterData() {
     setLoadingData(true);
@@ -55,11 +61,22 @@ export default function CourseRegistrationPanel({
     }
   }
 
+  // Derive available courses dynamically from teacher assignments filtered by the locked class level
   const derivedAvailableCourses = [];
   const seenCourseCodes = new Set();
 
   teachersList.forEach((teacher) => {
-    const rawSubjects = teacher.assigned_subjects || [];
+    let rawSubjects = teacher.assigned_subjects || [];
+    
+    // Handle cases where assigned_subjects might be stored as a stringified JSON or comma-separated string
+    if (typeof rawSubjects === "string") {
+      try {
+        rawSubjects = JSON.parse(rawSubjects);
+      } catch {
+        rawSubjects = rawSubjects.split(",").map(s => s.trim());
+      }
+    }
+
     const subjects = Array.isArray(rawSubjects) ? rawSubjects : [rawSubjects];
     const spec = (teacher.subject_specialization || "").replace(/[*\[\]"]/g, "").trim();
     
@@ -69,6 +86,7 @@ export default function CourseRegistrationPanel({
       if (!code) return;
       const cleanCode = String(code).replace(/[*\[\]"]/g, "").trim().toUpperCase();
 
+      // Flexible matching logic for class level codes
       const matchesClassLevel = cleanCode.includes(activeClassTier) || cleanCode === activeClassTier || cleanCode.includes(`-${activeClassTier}`);
       const isGeneralSecondaryFallback = !isPrimaryStudent && (cleanCode.includes("SEC") || cleanCode.includes("JSS"));
 
@@ -85,6 +103,7 @@ export default function CourseRegistrationPanel({
     });
   });
 
+  // Fallback default courses if no teacher mapping is explicitly found yet for this tier
   if (derivedAvailableCourses.length === 0 && !loadingData) {
     const defaultCodes = isPrimaryStudent 
       ? [`ENG-${activeClassTier}`, `MTH-${activeClassTier}`]
@@ -104,10 +123,13 @@ export default function CourseRegistrationPanel({
   function getAssignedTeacherForCourseCode(courseCode) {
     const target = (courseCode || "").replace(/[*\[\]"]/g, "").trim().toUpperCase();
     const matched = teachersList.find((teacher) => {
-      const subjects = teacher.assigned_subjects || [];
+      let subjects = teacher.assigned_subjects || [];
+      if (typeof subjects === "string") {
+        try { subjects = JSON.parse(subjects); } catch { subjects = [subjects]; }
+      }
       const spec = (teacher.subject_specialization || "").replace(/[*\[\]"]/g, "").trim().toUpperCase();
       
-      const matchesSubject = subjects.some((s) => {
+      const matchesSubject = Array.isArray(subjects) && subjects.some((s) => {
         const cleanS = String(s).replace(/[*\[\]"]/g, "").trim().toUpperCase();
         return cleanS === target || cleanS.includes(target) || target.includes(cleanS);
       });
