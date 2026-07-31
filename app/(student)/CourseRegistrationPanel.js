@@ -11,6 +11,7 @@ export default function CourseRegistrationPanel({
   performanceRecords = [],
   refreshRegistrations,
 }) {
+  // Respect exact student class level (e.g. "Primary 1" instead of generic "PRIMARY")
   const rawTier = studentClassLevel || studentSection || "JSS1";
   const activeClassTier = rawTier.toUpperCase().trim();
   const isPrimaryStudent = activeClassTier.includes("PRIMARY") || activeClassTier.includes("PRI") || activeClassTier.includes("PRY");
@@ -29,7 +30,7 @@ export default function CourseRegistrationPanel({
     }
   }, [currentStudentEmail, activeClassTier]);
 
-  // Fetch all teacher assignments configured dynamically by the Admin from Supabase
+  // Pull all teacher and course assignment mappings directly as set by Admin in Supabase
   async function fetchDatabaseMasterData() {
     setLoadingData(true);
     try {
@@ -57,13 +58,13 @@ export default function CourseRegistrationPanel({
 
       setTeachersList(allTeachers);
     } catch (err) {
-      console.error("Error loading teachers master data from Supabase:", err.message);
+      console.error("Error loading admin teacher assignments from Supabase:", err.message);
     } finally {
       setLoadingData(false);
     }
   }
 
-  // Automatically derive courses dynamically from what the Admin assigned to teachers for this class tier
+  // Purely dynamic tracking: Match teachers and courses explicitly assigned by the admin to this exact class level
   const derivedAvailableCourses = [];
   const seenCourseCodes = new Set();
 
@@ -84,12 +85,11 @@ export default function CourseRegistrationPanel({
     
     const allTeacherCodes = [...subjects, spec];
 
-    // Check if this teacher is assigned to the student's active tier (e.g. "PRIMARY 1", "PRIMARY", or "JSS1")
-    const matchesTierExplicitly = 
+    // Check if the admin assigned this teacher directly to the exact student class level (e.g. "PRIMARY 1")
+    const matchesExactClass = 
       assignedClassroom === activeClassTier ||
       assignedClassroom.includes(activeClassTier) ||
-      activeClassTier.includes(assignedClassroom) ||
-      (isPrimaryStudent && (assignedClassroom.includes("PRIMARY") || assignedClassroom.includes("PRI") || assignedClassroom.includes("PRY")));
+      activeClassTier.includes(assignedClassroom);
 
     allTeacherCodes.forEach((code) => {
       if (!code) return;
@@ -102,20 +102,21 @@ export default function CourseRegistrationPanel({
         normalizedTier.includes(normalizedCode) || 
         cleanCode.includes(activeClassTier);
 
-      if ((matchesTierExplicitly || matchesCodeTier) && cleanCode && !seenCourseCodes.has(cleanCode)) {
+      // Include if admin explicitly linked teacher classroom or subject code to the student's class tier
+      if ((matchesExactClass || matchesCodeTier) && cleanCode && !seenCourseCodes.has(cleanCode)) {
         seenCourseCodes.add(cleanCode);
         derivedAvailableCourses.push({
           id: cleanCode,
           code: cleanCode,
-          title: cleanCode.replace(/-/g, " "), // Dynamic title generated straight from admin code definition
+          title: cleanCode.replace(/-/g, " "),
           teacher_name: teacher.name || teacher.full_name || "Assigned Faculty",
           teacher_id: teacher.id || teacher.teacher_id || null
         });
       }
     });
 
-    // If admin explicitly linked the teacher to the classroom tier, grab their specialization/subject even if code formatting varies
-    if (matchesTierExplicitly && spec && !seenCourseCodes.has(spec.toUpperCase())) {
+    // If teacher classroom matches precisely, capture their specialization/subject mapping
+    if (matchesExactClass && spec && !seenCourseCodes.has(spec.toUpperCase())) {
       const cleanSpec = spec.toUpperCase();
       seenCourseCodes.add(cleanSpec);
       derivedAvailableCourses.push({
@@ -128,6 +129,7 @@ export default function CourseRegistrationPanel({
     }
   });
 
+  // Function to pinpoint the exact teacher assigned by admin for a specific course code
   function getAssignedTeacherForCourseCode(courseCode) {
     const target = (courseCode || "").replace(/[*\[\]"]/g, "").trim().toUpperCase();
     const matched = teachersList.find((teacher) => {
@@ -143,7 +145,7 @@ export default function CourseRegistrationPanel({
         return cleanS === target || cleanS.includes(target) || target.includes(cleanS);
       });
 
-      const matchesClass = assignedClassroom === activeClassTier || assignedClassroom.includes(activeClassTier) || activeClassTier.includes(assignedClassroom) || (isPrimaryStudent && (assignedClassroom.includes("PRIMARY") || assignedClassroom.includes("PRI")));
+      const matchesClass = assignedClassroom === activeClassTier || assignedClassroom.includes(activeClassTier) || activeClassTier.includes(assignedClassroom);
 
       return matchesSubject || spec === target || spec.includes(target) || (matchesClass && (matchesSubject || spec));
     });
@@ -157,6 +159,7 @@ export default function CourseRegistrationPanel({
     }
   }, [loadingData, activeClassTier, selectedTermFolder, teachersList]);
 
+  // Automatically sync admin-assigned courses and teacher bindings to course registrations
   async function syncAutomaticRegistrations() {
     if (!currentStudentEmail || derivedAvailableCourses.length === 0) return;
     setAutoRegistering(true);
@@ -261,7 +264,7 @@ export default function CourseRegistrationPanel({
         <div>
           <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Active Student Class & Tier (Locked)</h3>
           <p className="text-xs text-slate-400 mt-0.5">
-            Curriculum is strictly locked to your profile class level. Update your biodata to switch classes.
+            Curriculum tracks directly from admin-assigned teacher classes for your exact class level.
           </p>
         </div>
         <div className="bg-indigo-600 text-white font-black py-2.5 px-5 rounded-2xl text-xs uppercase tracking-wider shadow-md shadow-indigo-100 flex items-center gap-2">
@@ -319,18 +322,18 @@ export default function CourseRegistrationPanel({
               Assigned Courses & Instructors for {activeClassTier} ({selectedTermFolder})
             </h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              {autoRegistering ? "Synchronizing automated curriculum..." : "All courses assigned by the admin to your class level are listed below."}
+              {autoRegistering ? "Synchronizing admin curriculum..." : "Displaying courses and teachers assigned by admin for your exact class level."}
             </p>
           </div>
         </div>
 
         {loadingData ? (
           <p className="text-sm font-medium text-slate-400 text-center py-6 bg-slate-50 rounded-2xl border border-slate-200">
-            Loading course curriculum from teacher assignments...
+            Loading course curriculum from admin teacher assignments...
           </p>
         ) : displayRecords.length === 0 ? (
           <p className="text-sm font-medium text-slate-400 text-center py-6 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-            No courses mapped under {activeClassTier} - {selectedTermFolder}. Please check the admin teacher assignments configuration.
+            No courses mapped under {activeClassTier} - {selectedTermFolder}. Please make sure the admin has assigned teachers to "{activeClassTier}".
           </p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
