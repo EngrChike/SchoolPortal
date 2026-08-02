@@ -6,21 +6,34 @@ import { supabase } from "../../../lib/supabaseClient";
 
 // 📝 DICTIONARY: Map database abbreviations to Full Course Names
 const subjectNamesMap = {
-  "SST-SEC": "Social Studies (Secondary)",
-  "MTH-SEC": "Mathematics (Secondary)",
-  "MTH-PRI": "Mathematics (Primary)",
-  "CCA-PRI": "Cultural & Creative Arts (Primary)",
-  "AGR-SEC": "Agricultural Science (Secondary)",
-  "BST-PRI": "Basic Science & Technology (Primary)",
-  "ENG-SEC": "English Language (Secondary)",
-  "ENG-PRI": "English Language (Primary)",
-  "BUS-SEC": "Business Studies (Secondary)",
-  "SOS-PRI": "Social Studies (Primary)",
-  "PHE-PRI": "Physical & Health Education (Primary)",
-  "GAR-PRI": "General Arts (Primary)",
-  "BAS-SEC": "Basic Science (Secondary)",
-  "CRS-PRI": "Christian Religious Studies (Primary)",
-  "CMP-SEC": "Computer Science (Secondary)"
+  // Primary Subjects
+  "ENG-PRI": "English Studies",
+  "MTH-PRI": "Mathematics",
+  "BST-PRI": "Basic Science and Technology",
+  "PHE-PRI": "Physical and Health Education",
+  "CCA-PRI": "Cultural and Creative Arts",
+  "CRS-PRI": "Christian Religious Studies",
+  "IRS-PRI": "Islamic Religious Studies",
+  "SOS-PRI": "Social Studies",
+  "GAR-PRI": "Agricultural Science",
+
+  // Secondary Subjects
+  "MTH-SEC": "Mathematics (JSS - SS)",
+  "ENG-SEC": "English Language (JSS - SS)",
+  "BIO-SEC": "Biology (JSS Basic Science / SS Bio)",
+  "CHM-SEC": "Chemistry",
+  "PHY-SEC": "Physics",
+  "ECO-SEC": "Economics",
+  "GOV-SEC": "Government",
+  "CRS-SEC": "Christian Religious Studies",
+  "AGR-SEC": "Agricultural Science",
+  "ACC-SEC": "Financial Accounting",
+  "GEO-SEC": "Geography",
+  "LIT-SEC": "Literature-in-English",
+  "CMP-SEC": "Computer Studies / ICT",
+  "BUS-SEC": "Business Studies (JSS)",
+  "BAS-SEC": "Basic Science (JSS)",
+  "SST-SEC": "Social Studies / Civics (JSS)"
 };
 
 export default function TeacherDashboard() {
@@ -43,7 +56,6 @@ export default function TeacherDashboard() {
   // 🔍 HELPER: Get the raw database abbreviation (e.g., "MTH-SEC") for backend queries
   const getRawSubjectCode = () => {
     if (!teacherProfile) return "";
-    // Pulls directly from the column seen in your database screenshot
     return teacherProfile.subject_specialization || (teacherProfile.assigned_subjects ? teacherProfile.assigned_subjects[0] : "");
   };
 
@@ -112,7 +124,7 @@ export default function TeacherDashboard() {
       .from("attendance_sessions")
       .select("*, attendance_records(status, students(name))")
       .eq("class_level", selectedClass)
-      .eq("subject", rawSubject) // Queries using the raw code (e.g. "MTH-SEC")
+      .eq("subject", rawSubject) // Queries using the raw code
       .order("created_at", { ascending: false });
       
     if (error) {
@@ -308,7 +320,7 @@ export default function TeacherDashboard() {
                   <p className="font-bold text-slate-800 text-base">{teacherProfile.name}</p>
                 </div>
                 
-                {/* 📞 Phone Number Display Added Here */}
+                {/* 📞 Phone Number Display */}
                 <div className="border-b border-slate-100 pb-3">
                   <span className="text-slate-400 text-xs font-medium uppercase tracking-wider">Phone Number</span>
                   <p className="font-bold text-slate-800 text-base">{teacherProfile.phone || "Not Provided"}</p>
@@ -320,7 +332,7 @@ export default function TeacherDashboard() {
                 </div>
                 <div className="border-b border-slate-100 pb-3">
                   <span className="text-slate-400 text-xs font-medium uppercase tracking-wider">Assigned Class Levels</span>
-                  <div className="flex gap-2 mt-1">
+                  <div className="flex gap-2 mt-1 flex-wrap">
                     {teacherProfile.assigned_classes?.length > 0 ? (
                       teacherProfile.assigned_classes.map(cls => (
                         <span key={cls} className="bg-slate-100 text-slate-700 px-3 py-1 rounded-lg text-sm font-bold uppercase">{cls}</span>
