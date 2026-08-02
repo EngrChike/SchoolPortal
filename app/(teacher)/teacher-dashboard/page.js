@@ -84,20 +84,14 @@ export default function TeacherDashboard() {
     if (data?.assigned_classes?.length > 0) setSelectedClass(data.assigned_classes[0]);
   }
 
-  // Fetch Students offering this specific subject
+  // Fetch all students in the selected class level
   useEffect(() => {
     if (selectedClass && teacherProfile) {
       async function fetchStudents() {
-        const rawSubject = getRawSubjectCode(); // 🎯 Uses raw code (e.g. "MTH-SEC") to match student profiles properly
-        
         let query = supabase
           .from("students")
           .select("id, name, passport_url")
           .eq("class_level", selectedClass);
-
-        if (rawSubject) {
-          query = query.contains("offered_subjects", [rawSubject]);
-        }
         
         const { data, error } = await query;
         if (error) {
@@ -253,7 +247,7 @@ export default function TeacherDashboard() {
 
             {students.length === 0 ? (
                <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center text-slate-500 font-medium">
-                 No students found offering <strong className="text-slate-800">{getFullSubjectName()}</strong> in <strong className="text-slate-800">{selectedClass}</strong>.
+                 No students found in class <strong className="text-slate-800">{selectedClass}</strong>.
                </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
