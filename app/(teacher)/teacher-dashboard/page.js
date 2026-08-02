@@ -4,6 +4,25 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabaseClient";
 
+// 📝 DICTIONARY: Map database abbreviations to Full Course Names
+const subjectNamesMap = {
+  "SST-SEC": "Social Studies (Secondary)",
+  "MTH-SEC": "Mathematics (Secondary)",
+  "MTH-PRI": "Mathematics (Primary)",
+  "CCA-PRI": "Cultural & Creative Arts (Primary)",
+  "AGR-SEC": "Agricultural Science (Secondary)",
+  "BST-PRI": "Basic Science & Technology (Primary)",
+  "ENG-SEC": "English Language (Secondary)",
+  "ENG-PRI": "English Language (Primary)",
+  "BUS-SEC": "Business Studies (Secondary)",
+  "SOS-PRI": "Social Studies (Primary)",
+  "PHE-PRI": "Physical & Health Education (Primary)",
+  "GAR-PRI": "General Arts (Primary)",
+  "BAS-SEC": "Basic Science (Secondary)",
+  "CRS-PRI": "Christian Religious Studies (Primary)",
+  "CMP-SEC": "Computer Science (Secondary)"
+};
+
 export default function TeacherDashboard() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("attendance");
@@ -21,9 +40,17 @@ export default function TeacherDashboard() {
   const [showHistory, setShowHistory] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Helper to safely extract the teacher's subject
-  const getTeacherSubject = () => {
-    return teacherProfile?.subject || teacherProfile?.specialization || teacherProfile?.course || "";
+  // 🔍 HELPER: Get the raw database abbreviation (e.g., "MTH-SEC") for backend queries
+  const getRawSubjectCode = () => {
+    if (!teacherProfile) return "";
+    // Pulls directly from the column seen in your database screenshot
+    return teacherProfile.subject_specialization || (teacherProfile.assigned_subjects ? teacherProfile.assigned_subjects[0] : "");
+  };
+
+  // 📖 HELPER: Get the beautiful full name for the UI
+  const getFullSubjectName = () => {
+    const rawCode = getRawSubjectCode();
+    return subjectNamesMap[rawCode] || rawCode || "Unassigned";
   };
 
   useEffect(() => {
@@ -34,7 +61,13 @@ export default function TeacherDashboard() {
   }, []);
 
   async function loadTeacherProfile(email) {
-    const { data } = await supabase.from("teachers").select("*").eq("email", email).maybeSingle();
+    const { data, error } = await supabase.from("teachers").select("*").eq("email", email).maybeSingle();
+    
+    if (error) {
+      console.error("Error fetching teacher:", error);
+      return;
+    }
+    
     setTeacherProfile(data);
     if (data?.assigned_classes?.length > 0) setSelectedClass(data.assigned_classes[0]);
   }
@@ -43,7 +76,7 @@ export default function TeacherDashboard() {
   useEffect(() => {
     if (selectedClass && teacherProfile) {
       async function fetchStudents() {
-        const subject = getTeacherSubject();
+        const rawSubject = getRawSubjectCode();
         
         let query = supabase
           .from("students")
@@ -51,13 +84,16 @@ export default function TeacherDashboard() {
           .eq("class_level", selectedClass);
 
         // FILTER: Only fetch students that offer this subject. 
-        // NOTE: Ensure your 'students' table has a column named 'offered_subjects' (array type).
-        // If your column is named differently (e.g., 'subjects'), change it below.
-        if (subject) {
-          query = query.contains("offered_subjects", [subject]);
+        if (rawSubject) {
+          query = query.contains("offered_subjects", [rawSubject]);
         }
         
-        const { data } = await query;
+        const { data, error } = await query;
+        if (error) {
+          console.error("Error fetching students:", error);
+          return;
+        }
+
         const list = data || [];
         setStudents(list);
         
@@ -70,14 +106,21 @@ export default function TeacherDashboard() {
   }, [selectedClass, teacherProfile]);
 
   async function fetchHistory() {
-    const subject = getTeacherSubject();
-    const { data } = await supabase
+    const rawSubject = getRawSubjectCode();
+    
+    const { data, error } = await supabase
       .from("attendance_sessions")
       .select("*, attendance_records(status, students(name))")
       .eq("class_level", selectedClass)
-      .eq("subject", subject) // Only fetch history for this specific subject
+      .eq("subject", rawSubject) // Queries using the raw code (e.g. "MTH-SEC")
       .order("created_at", { ascending: false });
       
+    if (error) {
+      alert("Error loading history: " + error.message);
+      console.error(error);
+      return;
+    }
+
     setHistory(data || []);
     setShowHistory(true);
   }
@@ -88,13 +131,13 @@ export default function TeacherDashboard() {
 
   const saveAttendance = async () => {
     setIsSaving(true);
-    const subject = getTeacherSubject();
+    const rawSubject = getRawSubjectCode();
 
     try {
       // 1. Insert session with the specific subject included
       const { data: session, error: sessionError } = await supabase.from("attendance_sessions").insert({
         class_level: selectedClass, 
-        subject: subject, // Tied strictly to the course handled
+        subject: rawSubject, 
         academic_session: academicSession, 
         term: term, 
         date: new Date().toISOString(), 
@@ -112,10 +155,11 @@ export default function TeacherDashboard() {
 
       if (recordsError) throw recordsError;
 
-      alert(`✅ Attendance for ${subject} (${selectedClass}) archived successfully!`);
+      alert(`✅ Attendance for ${getFullSubjectName()} (${selectedClass}) archived successfully!`);
       fetchHistory();
     } catch (err) { 
       alert("Error saving attendance: " + err.message); 
+      console.error(err);
     } finally { 
       setIsSaving(false); 
     }
@@ -173,7 +217,7 @@ export default function TeacherDashboard() {
               <h2 className="text-2xl font-black">{teacherProfile.name}</h2>
             </div>
             <div className="flex flex-col sm:items-end bg-indigo-700/50 p-4 rounded-2xl">
-              <p className="text-sm font-medium"><span className="text-indigo-200">Course Handling:</span> <strong className="uppercase">{getTeacherSubject() || "Unassigned"}</strong></p>
+              <p className="text-sm font-medium"><span className="text-indigo-200">Course Handling:</span> <strong className="uppercase">{getFullSubjectName()}</strong></p>
               <p className="text-sm font-medium mt-1"><span className="text-indigo-200">Active Level:</span> <strong className="uppercase">{selectedClass || "N/A"}</strong></p>
             </div>
           </div>
@@ -200,7 +244,7 @@ export default function TeacherDashboard() {
 
             {students.length === 0 ? (
                <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center text-slate-500 font-medium">
-                 No students found offering <strong className="text-slate-800">{getTeacherSubject()}</strong> in <strong className="text-slate-800">{selectedClass}</strong>.
+                 No students found offering <strong className="text-slate-800">{getFullSubjectName()}</strong> in <strong className="text-slate-800">{selectedClass}</strong>.
                </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -229,7 +273,7 @@ export default function TeacherDashboard() {
         {showHistory && (
           <div className="space-y-6">
             <button onClick={() => setShowHistory(false)} className="text-xs font-bold text-indigo-600 hover:underline">← BACK TO ROSTER</button>
-            <h2 className="text-lg font-black text-slate-800">Attendance History Archive ({getTeacherSubject()})</h2>
+            <h2 className="text-lg font-black text-slate-800">Attendance History Archive ({getFullSubjectName()})</h2>
             <div className="space-y-4">
               {history.length === 0 ? (
                 <p className="text-slate-500 text-sm">No recorded sessions found for this subject.</p>
@@ -238,7 +282,7 @@ export default function TeacherDashboard() {
                   <div key={s.id} className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm">
                     <p className="font-bold text-sm text-slate-800 border-b border-slate-100 pb-2 mb-3">
                       {s.term} ({s.academic_session}) - {new Date(s.date).toLocaleDateString()} 
-                      <span className="ml-2 text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md text-xs">{s.subject}</span>
+                      <span className="ml-2 text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md text-xs">{subjectNamesMap[s.subject] || s.subject}</span>
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {s.attendance_records.map((r, i) => (
@@ -263,9 +307,16 @@ export default function TeacherDashboard() {
                   <span className="text-slate-400 text-xs font-medium uppercase tracking-wider">Full Name</span>
                   <p className="font-bold text-slate-800 text-base">{teacherProfile.name}</p>
                 </div>
+                
+                {/* 📞 Phone Number Display Added Here */}
+                <div className="border-b border-slate-100 pb-3">
+                  <span className="text-slate-400 text-xs font-medium uppercase tracking-wider">Phone Number</span>
+                  <p className="font-bold text-slate-800 text-base">{teacherProfile.phone || "Not Provided"}</p>
+                </div>
+
                 <div className="border-b border-slate-100 pb-3">
                   <span className="text-slate-400 text-xs font-medium uppercase tracking-wider">Assigned Subject / Course</span>
-                  <p className="font-bold text-slate-800 uppercase text-base">{getTeacherSubject() || "Not assigned"}</p>
+                  <p className="font-bold text-slate-800 uppercase text-base">{getFullSubjectName()}</p>
                 </div>
                 <div className="border-b border-slate-100 pb-3">
                   <span className="text-slate-400 text-xs font-medium uppercase tracking-wider">Assigned Class Levels</span>
