@@ -88,14 +88,13 @@ export default function TeacherDashboard() {
   useEffect(() => {
     if (selectedClass && teacherProfile) {
       async function fetchStudents() {
-        const rawSubject = getRawSubjectCode();
+        const rawSubject = getRawSubjectCode(); // 🎯 Uses raw code (e.g. "MTH-SEC") to match student profiles properly
         
         let query = supabase
           .from("students")
           .select("id, name, passport_url")
           .eq("class_level", selectedClass);
 
-        // FILTER: Only fetch students that offer this subject. 
         if (rawSubject) {
           query = query.contains("offered_subjects", [rawSubject]);
         }
@@ -124,7 +123,7 @@ export default function TeacherDashboard() {
       .from("attendance_sessions")
       .select("*, attendance_records(status, students(name))")
       .eq("class_level", selectedClass)
-      .eq("subject", rawSubject) // Queries using the raw code
+      .eq("subject", rawSubject) 
       .order("created_at", { ascending: false });
       
     if (error) {
@@ -146,7 +145,6 @@ export default function TeacherDashboard() {
     const rawSubject = getRawSubjectCode();
 
     try {
-      // 1. Insert session with the specific subject included
       const { data: session, error: sessionError } = await supabase.from("attendance_sessions").insert({
         class_level: selectedClass, 
         subject: rawSubject, 
@@ -158,7 +156,6 @@ export default function TeacherDashboard() {
       
       if (sessionError) throw sessionError;
       
-      // 2. Insert records for this session
       const { error: recordsError } = await supabase.from("attendance_records").insert(students.map(s => ({
         session_id: session.id, 
         student_id: s.id, 
@@ -320,7 +317,6 @@ export default function TeacherDashboard() {
                   <p className="font-bold text-slate-800 text-base">{teacherProfile.name}</p>
                 </div>
                 
-                {/* 📞 Phone Number Display */}
                 <div className="border-b border-slate-100 pb-3">
                   <span className="text-slate-400 text-xs font-medium uppercase tracking-wider">Phone Number</span>
                   <p className="font-bold text-slate-800 text-base">{teacherProfile.phone || "Not Provided"}</p>
